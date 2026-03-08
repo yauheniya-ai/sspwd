@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+[project]
+name = "sspwd"
+version = "0.1.0"
+description = "A local, encrypted password manager with a web UI."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Yauheniya Varabyova"}
+]
+maintainers = [
+    {name = "Yauheniya Varabyova"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Utilities",
+]
+keywords = ["password", "manager", "security", "encryption", "cli", "vault"]
+requires-python = ">=3.10"
+
+dependencies = [
+    # Web server
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.0",           # FastAPI uses Pydantic v2 for request/response models
+    # CLI
+    "click>=8.1",
+    # Encryption  (PBKDF2 key derivation + Fernet AES)
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "twine",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock",
+    "httpx>=0.27",             # needed by FastAPI TestClient
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=0.991",
+    "pre-commit>=2.20.0",
+    "sphinx>=5.0",
+    "sphinx-rtd-theme>=1.0",
+    "myst-parser>=0.18",
+]
+
+[project.urls]
+"Repository" = "https://github.com/yauheniya-ai/sspwd"
+"Changelog"  = "https://github.com/yauheniya-ai/sspwd/blob/main/CHANGELOG.md"
+
+# ---------------------------------------------------------------------------
+# Entry point — `sspwd` command becomes available after `pip install`
+# ---------------------------------------------------------------------------
+[project.scripts]
+sspwd = "sspwd.cli:main"
+
+# ---------------------------------------------------------------------------
+# Package discovery
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Bundle the pre-built React/Vite static files shipped inside the package.
+[tool.setuptools.package-data]
+"sspwd.ui" = ["static/**/*"]
+
+# ---------------------------------------------------------------------------
+# Test / coverage config
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths  = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["sspwd"]
+omit   = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version         = "3.10"
+ignore_missing_imports = true
