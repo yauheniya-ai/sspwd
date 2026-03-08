@@ -5,6 +5,10 @@ A local, encrypted password manager with a built-in web UI.
 Passwords are stored in `~/.sspwd/vault.db` — fully encrypted with a key
 derived from your master password. Nothing leaves your machine.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yauheniya-ai/sspwd/main/docs/images/Screenshot.png" width="100%" />
+  <em>Interactive UI to manage passwords</em>
+</p>
 ---
 
 ## Installation

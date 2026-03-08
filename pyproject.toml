@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sspwd"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local, encrypted password manager with a web UI."
 readme = "README.md"
 license = {text = "MIT"}
@@ -83,6 +83,9 @@ where = ["src"]
 # Bundle the pre-built React/Vite static files shipped inside the package.
 [tool.setuptools.package-data]
 "sspwd.ui" = ["static/**/*"]
+
+[tool.setuptools]
+include-package-data = true
 
 # ---------------------------------------------------------------------------
 # Test / coverage config

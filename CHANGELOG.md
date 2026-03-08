@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.1.1 (2026-03-08)
+
+- Fixed search input triggering browser password manager / fingerprint prompt by switching to `type="search"` with `autocomplete="off"`, `data-form-type="other"`, and `data-lpignore="true"`
+- Added solid Iconify icons per category in the sidebar (`mdi:school`, `mdi:bank`, `mdi:server`, etc.) with a `CATEGORY_ICONS` map for easy extension
+- Fixed `--no-browser` flag — browser no longer opens when the flag is passed; rewired launch to uvicorn's startup event to eliminate the race condition
+- Vault selector dropdown in the header now fetches live data from `GET /api/v1/entries` when `vault.db` is selected, with loading state and error message if the server is unreachable
+- Moved "Add entry" button from the header into the main content summary bar, inline with the entry/category count
+
 ## Version 0.1.0 (2026-03-08)
 
 - Initialized PyPI package `sspwd` with `setuptools` build backend and `pyproject.toml`

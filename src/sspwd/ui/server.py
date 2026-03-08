@@ -101,12 +101,6 @@ class UIServer:
         """
         url = f"http://{self._host}:{self._port}"
 
-        if self._open_browser:
-            # Delay slightly so the server is ready before the browser opens.
-            timer = threading.Timer(1.0, webbrowser.open, args=(url,))
-            timer.daemon = True
-            timer.start()
-
         config = uvicorn.Config(
             self._app,
             host=self._host,
@@ -115,8 +109,23 @@ class UIServer:
         )
         server = uvicorn.Server(config)
 
+        # Hook into uvicorn's startup so the browser only opens once the
+        # server is actually listening — avoids the race condition that
+        # caused the browser to open even when open_browser=False.
+        if self._open_browser:
+            original_startup = server.startup
+
+            async def _startup_and_open(sockets=None):
+                await original_startup(sockets=sockets)
+                threading.Thread(
+                    target=webbrowser.open, args=(url,), daemon=True
+                ).start()
+
+            server.startup = _startup_and_open  # type: ignore[method-assign]
+
+        print(f"sspwd UI → {url}  (Ctrl+C to quit)")
+
         if block:
-            print(f"sspwd UI → {url}  (Ctrl+C to quit)")
             server.run()
         else:
             thread = threading.Thread(target=server.run, daemon=True)
