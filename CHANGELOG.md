@@ -1,5 +1,70 @@
 # Changelog
 
+## Version 0.1.2 (2026-03-09)
+
+### Multi-project vault support
+
+- Vault layout changed from `~/.sspwd/vault.db` to `~/.sspwd/{project}/vault.db`
+- New `--project` / `-p` flag on all CLI commands (`serve`, `add`, `list`, `get`, `delete`)
+- New `sspwd projects` command lists all existing vaults with their sizes
+- Default project name is `default` when no `--project` flag is given
+- Icons are stored per-project at `~/.sspwd/{project}/icons/`
+
+### Password-free server startup
+
+- `sspwd serve` no longer prompts for a master password at startup
+- Server starts unlocked into mock/demo mode
+- Projects are unlocked on demand via `POST /api/v1/projects/{name}/unlock` in the browser
+- Multiple projects can be unlocked and switched between within a single server session
+
+### New API endpoints
+
+- `GET  /api/v1/projects` — list all projects that exist on disk
+- `GET  /api/v1/projects/unlocked` — list projects unlocked in the current session
+- `POST /api/v1/projects/{name}/unlock` — unlock a project with its master password
+- `POST /api/v1/projects` — create a new project
+- `DELETE /api/v1/projects/{name}/lock` — lock a project (remove from session)
+- All entry and icon endpoints now require `?project=` query parameter
+
+### Entry persistence fixed
+
+- Adding, editing, and deleting entries now calls the backend API and persists to `vault.db`
+- Previously entries were only stored in React state and lost on page reload
+- Mock mode (`mockData`) continues to work in local state only
+
+### Icon upload fixed
+
+- Icon upload now correctly passes `?project=` to `POST /api/v1/icons`
+- Uploaded icons are saved to `~/.sspwd/{project}/icons/` and survive server restarts
+- Mock mode falls back to a local object URL for preview without a backend
+
+### Frontend — project selector redesign
+
+- Native `<select>` replaced with a custom dropdown that renders Iconify icons per option
+- Locked projects show `si:lock-muted-fill` icon
+- Unlocked projects show `si:unlock-fill` icon in green
+- mockData entry shows `si:unlock-fill` (not a database icon — db icon remains next to the dropdown)
+- Active unlocked project shows `si:unlock-fill` + `live` badge in the header
+- "+ new project" label shortened to "+ new"
+
+### Frontend — unlock modal improvements
+
+- Modal title shows only the project name (e.g. `ya`), not `Unlock — ya`
+- Password field label changed from `MASTER PASSWORD` to `ENTER MASTER PASSWORD TO UNLOCK`
+- Unlock button shows `si:unlock-fill` icon alongside the label
+
+### Service type simplified
+
+- `ServiceType` reduced from four values (`free`, `paid`, `freemium`, `unknown`) to two (`free`, `paid`)
+- All mock entries updated accordingly
+
+### Bug fixes
+
+- `from __future__ import annotations` added to `sqlite.py` to fix `list[str]` type hint crash on Python 3.10
+- Empty vault state now shows an "Add first entry" button instead of only the `∅` symbol
+- Empty state message distinguishes between "No entries yet." and "No entries match your filters."
+- `serviceType` mapping from API response corrected from `"unknown"` fallback to `"free"`
+
 ## Version 0.1.1 (2026-03-08)
 
 - Fixed search input triggering browser password manager / fingerprint prompt by switching to `type="search"` with `autocomplete="off"`, `data-form-type="other"`, and `data-lpignore="true"`
