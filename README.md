@@ -18,8 +18,6 @@ A local, encrypted password manager with a built-in web UI.
 Passwords are stored in `~/.sspwd/default/vault.db` — fully encrypted with a key
 derived from your master password. Nothing leaves your machine.
 
----
-
 ## Tech Stack
 
 **Backend**
@@ -50,8 +48,6 @@ pip install sspwd
 
 > Requires Python ≥ 3.10.
 
----
-
 ## Quick start
 
 ### Web UI
@@ -60,35 +56,91 @@ pip install sspwd
 sspwd serve
 ```
 
-Opens `http://127.0.0.1:7523` in your default browser. Enter your master
-password when prompted (a new vault is created automatically on first run).
+Opens `http://127.0.0.1:7523` in your browser — **no password required at startup.** The UI launches in demo mode (`mockData`). Select a project from the dropdown to unlock it with its master password, or create a new one.
+
+```
+mockData        ← demo data, no password needed
+default    🔒   ← click to unlock with master password
+work       🔒   ← separate encrypted vault
++ new           ← create a new project
+```
 
 ### CLI
 
 ```bash
-# Add an entry
-sspwd add
+# Start the server (opens browser automatically)
+sspwd serve
 
-# List all entries
-sspwd list
+# Start without opening the browser
+sspwd serve --no-browser
 
-# Search
-sspwd list --search github
+# Work with a specific project
+sspwd add --project work
+sspwd list --project work
+sspwd list --project work --search github
 
-# Show a single entry (reveals password)
-sspwd get 3
+# Show a single entry by ID (reveals password)
+sspwd get 3 --project work
 
 # Delete an entry
-sspwd delete 3
+sspwd delete 3 --project work
+
+# List all existing projects
+sspwd projects
 ```
 
-### Custom vault location
+> All CLI commands that access a vault will prompt for the master password.
 
-```bash
-sspwd serve --vault-dir /path/to/my/vault
+## How it works
+
+```mermaid
+flowchart TD
+    A([sspwd serve]) --> B[FastAPI server starts no password required]
+    B --> C[Browser opens UI loads on mockData]
+
+    C --> D{User selects a project}
+
+    D -->|New project| E[Enter name + set master password]
+    D -->|Existing project| F[Enter master password]
+
+    E --> G[Argon2id derives 256-bit key from password + salt]
+    F --> G
+
+    G --> H{verify.bin decryption}
+    H -->|InvalidTag| I[Wrong password 401 Unauthorized]
+    H -->|OK| J[Project unlocked entries loaded]
+
+    J --> K[Browse / search entries in UI]
+    K --> L{Action}
+
+    L -->|Add / Edit| M[AES-256-GCM encrypt password + notes]
+    M --> N[(~/.sspwd/project/vault.db )]
+
+    L -->|Delete| N
+    L -->|Upload icon| O[(~/.sspwd/project/icons/)]
+
+    N --> P[Key discarded on server exit]
+    O --> P
 ```
 
----
+## Projects
+
+Each project is a completely isolated, separately encrypted vault:
+
+```
+~/.sspwd/
+├── default/          ← created automatically on first use
+│   ├── vault.db      ← encrypted entries
+│   ├── salt.bin      ← 32-byte random salt (unique per project)
+│   ├── verify.bin    ← encrypted sentinel for password verification
+│   └── icons/        ← uploaded custom icons
+├── work/
+│   └── ...
+└── private/
+    └── ...
+```
+
+Projects can have different master passwords. Switching between them in the UI prompts for the relevant password only once per server session.
 
 ## Security
 
@@ -98,7 +150,7 @@ sspwd serve --vault-dir /path/to/my/vault
 | Key derivation | [Argon2id](https://github.com/hynek/argon2-cffi) — memory-hard, OWASP 2024 recommended |
 | Argon2id parameters | `time=3`, `memory=64 MiB`, `parallelism=2` |
 | Key size | 256-bit |
-| Nonce | 12 bytes, random per encryption call (never reused) |
+| Nonce | 12 bytes, random per encryption call, never reused |
 | Storage | SQLite (`~/.sspwd/{project}/vault.db`) |
 | Key never stored | Derived in memory on unlock, discarded on server exit |
 
@@ -106,42 +158,38 @@ sspwd serve --vault-dir /path/to/my/vault
 
 | File | Purpose |
 |---|---|
-| `salt.bin` | 32 random bytes, created once. Makes your key unique to this vault — the same password on two vaults produces two completely different keys. Not secret on its own. |
-| `verify.bin` | A tiny AES-256-GCM encrypted file containing a known plaintext. Decrypted on every unlock to verify the master password immediately — wrong password → `InvalidTag` → 401, before any entry data is touched. |
-| `vault.db` | SQLite database. All `password` and `notes` fields are AES-256-GCM encrypted. Titles and usernames are stored in plaintext for search. |
-| `icons/` | User-uploaded icon files, served locally. |
+| `salt.bin` | 32 random bytes, generated once at vault creation. Makes your key unique to this vault — the same password on two vaults produces two completely different keys. Not a secret on its own. |
+| `verify.bin` | A tiny AES-256-GCM encrypted blob containing a known plaintext. Decrypted on every unlock attempt — wrong password raises `InvalidTag` immediately, before any entry data is touched. |
+| `vault.db` | SQLite database. `password` and `notes` fields are AES-256-GCM encrypted. Titles and usernames are stored in plaintext to support search. |
+| `icons/` | User-uploaded icon files (PNG, SVG, WEBP), served locally by the FastAPI server. |
 
-The master password is never stored anywhere. It is entered in the browser when unlocking a project, used to derive the key via Argon2id, and the key lives only in process memory for the lifetime of the server session.
+The master password is never stored anywhere. It is entered in the browser UI, used to derive the AES key via Argon2id, and the key lives only in process memory for the lifetime of the server session. Stopping `sspwd serve` discards it.
 
----
+> **Backup:** Your vault is local only — there is no sync. Back it up with:
+> ```bash
+> rsync -av ~/.sspwd/ ~/path/to/backup/
+> ```
 
-## Development
+## How sspwd compares
 
-```bash
-git clone https://github.com/yauheniya-ai/sspwd
-cd sspwd/pypi
+| | sspwd | Browser (Safari/Chrome) | 1Password / Bitwarden | macOS Keychain |
+|---|---|---|---|---|
+| Local-only | ✅ | ❌ cloud sync | ❌ cloud sync | ✅ |
+| Open source | ✅ | ❌ | Bitwarden ✅ | ❌ |
+| No account needed | ✅ | ❌ | ❌ | ✅ |
+| Project / workspace isolation | ✅ | ❌ | ❌ | ❌ |
+| Tags, categories, metadata | ✅ | ❌ | partial | ❌ |
+| Custom icons | ✅ | ❌ | ✅ | ❌ |
+| Browser autofill extension | ❌ | ✅ | ✅ | ✅ |
+| Audit the encryption code | ✅ | ❌ | Bitwarden ✅ | ❌ |
 
-# Install in editable mode with dev extras
-pip install -e ".[dev]"
+**Browser managers** (Safari Keychain, Chrome Passwords) sync to Apple/Google servers by default. Even with strong client-side encryption, you are trusting a corporation's infrastructure, account security, and update pipeline. Their browser extension autofill is also a real attack surface — extensions request access to read and modify all pages, making a compromised extension a universal credential harvester. Copy-paste is more deliberate and phishing-resistant.
 
-# Run tests
-pytest
+**1Password / Bitwarden** are the closest conceptual relatives — master password, local encryption, structured entries. Bitwarden is open-source and self-hostable. Their advantage is cross-device sync and mobile apps; their disadvantage is mandatory account setup, cloud dependency (unless self-hosted), and no project isolation without a paid Teams plan.
 
-# Lint
-ruff check src tests
-```
+**macOS Keychain** is local and OS-integrated but has no organisational structure, no web UI, is macOS-only, and is difficult to export or script against.
 
-### Building the React UI
-
-```bash
-cd ../frontend
-npm install
-npm run build
-# Copy dist/ into pypi/src/sspwd/ui/static/
-cp -r dist/* ../pypi/src/sspwd/ui/static/
-```
-
----
+**sspwd's advantage** is zero setup, zero accounts, zero cloud, and the ability to keep personal, work, and client credentials in cleanly separated encrypted vaults — with a searchable, filterable UI accessible from any browser on localhost.
 
 ## License
 
