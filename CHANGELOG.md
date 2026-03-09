@@ -1,5 +1,42 @@
 # Changelog
 
+## Version 0.2.0 (2026-03-09)
+
+### Breaking change — vault format incompatible with v0.1.x
+
+Existing vaults encrypted under v0.1.x cannot be read by v0.2.0. Use the
+`examine_vault.py` utility to export your entries before upgrading, then
+re-import them into a new vault.
+
+### Security upgrade — Argon2id + AES-256-GCM
+
+- **KDF changed from PBKDF2-HMAC-SHA256 (390k iterations) to Argon2id**
+  - Parameters: `time_cost=3`, `memory_cost=64 MiB`, `parallelism=2`
+  - Argon2id is memory-hard — GPU/ASIC parallel cracking attacks are
+    exponentially more expensive than against PBKDF2
+  - Parameters meet and exceed OWASP 2024 minimum recommendations
+  - New dependency: `argon2-cffi>=23.1`
+
+- **Cipher changed from Fernet (AES-128-CBC + HMAC-SHA256) to AES-256-GCM**
+  - 256-bit key (up from 128-bit)
+  - GCM is an AEAD mode: authentication is built-in (no separate HMAC)
+  - 12-byte random nonce generated fresh for every encryption call
+  - Wire format: `base64(nonce[12] || ciphertext+tag)` stored in SQLite
+  - Faster than CBC+HMAC on CPUs with AES-NI (all modern hardware)
+
+- **`verify.bin` sentinel added to each vault**
+  - Contains `"sspwd-ok"` encrypted with the vault's key
+  - Decrypted on every `SQLiteStorage.__init__()` call
+  - Wrong master password raises `InvalidTag` immediately, before any
+    entry data is touched — prevents silent corruption on wrong password
+  - Replaces the previous `storage.list()` verification attempt, which
+    failed silently on empty vaults
+
+### Dependency changes
+
+- Added: `argon2-cffi>=23.1`
+- `cryptography>=42.0` retained (now used for `AESGCM` instead of `Fernet`)
+
 ## Version 0.1.2 (2026-03-09)
 
 ### Multi-project vault support

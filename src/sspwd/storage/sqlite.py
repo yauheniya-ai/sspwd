@@ -1,52 +1,87 @@
 """
-SQLite storage backend with Fernet symmetric encryption.
+SQLite storage backend with Argon2id key derivation and AES-256-GCM encryption.
 
 Vault layout:
-    ~/.sspwd/{project}/vault.db   — encrypted entries
-    ~/.sspwd/{project}/salt.bin   — PBKDF2 salt (never changes once created)
-    ~/.sspwd/{project}/icons/     — user-uploaded company icons
+    ~/.sspwd/{project}/vault.db    — encrypted entries
+    ~/.sspwd/{project}/salt.bin    — Argon2id salt (32 bytes, random, fixed per vault)
+    ~/.sspwd/{project}/verify.bin  — encrypted sentinel; verifies master password on open
+    ~/.sspwd/{project}/icons/      — user-uploaded company icons
 
-The master password is used to derive an AES-128 key via PBKDF2.
-The derived key is never stored on disk.
+Security design:
+    - KDF:    Argon2id (OWASP 2024 recommended parameters)
+    - Cipher: AES-256-GCM (authenticated encryption; 12-byte random nonce per message)
+    - Salt:   32 bytes, generated once with os.urandom(), never regenerated
+    - Key:    32 bytes; held in RAM only, never written to disk
+    - Format: nonce (12 B) || ciphertext+tag stored as base64 text in SQLite
 """
 
 from __future__ import annotations
 
 import base64
-import hashlib
 import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from cryptography.fernet import Fernet
+from argon2.low_level import Type, hash_secret_raw
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .base import BaseStorage, PasswordEntry
 
-_DB_FILENAME      = "vault.db"
-_SALT_FILENAME    = "salt.bin"
-_SENTINEL_FILENAME = "verify.bin"   # Fernet-encrypted known plaintext; proves key is correct
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_DB_FILENAME        = "vault.db"
+_SALT_FILENAME      = "salt.bin"
+_SENTINEL_FILENAME  = "verify.bin"
 _SENTINEL_PLAINTEXT = b"sspwd-ok"
-_ICONS_DIRNAME    = "icons"
-_DEFAULT_PROJECT  = "default"
+_ICONS_DIRNAME      = "icons"
+_DEFAULT_PROJECT    = "default"
+
+# AES-GCM nonce length (96-bit is the standard recommendation)
+_NONCE_LEN = 12
+
+# Argon2id parameters — OWASP 2024 recommended minimum:
+#   memory ≥ 19 MiB, iterations ≥ 2, parallelism ≥ 1
+# Using slightly above minimum for a comfortable security margin.
+_ARGON2_TIME_COST   = 3          # number of iterations
+_ARGON2_MEMORY_COST = 65536      # 64 MiB (in KiB)
+_ARGON2_PARALLELISM = 2
+_ARGON2_HASH_LEN    = 32         # 256-bit output key for AES-256
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
 
 
 def _derive_key(master_password: str, salt: bytes) -> bytes:
-    dk = hashlib.pbkdf2_hmac(
-        "sha256",
-        master_password.encode(),
-        salt,
-        iterations=390_000,
-        dklen=32,
+    """
+    Derive a 256-bit key from the master password using Argon2id.
+    Returns raw bytes (not base64) — used directly with AESGCM.
+    """
+    return hash_secret_raw(
+        secret=master_password.encode(),
+        salt=salt,
+        time_cost=_ARGON2_TIME_COST,
+        memory_cost=_ARGON2_MEMORY_COST,
+        parallelism=_ARGON2_PARALLELISM,
+        hash_len=_ARGON2_HASH_LEN,
+        type=Type.ID,
     )
-    return base64.urlsafe_b64encode(dk)
 
 
 def project_dir(project: str = _DEFAULT_PROJECT, base: Optional[Path] = None) -> Path:
-    """Return the directory for a given project, e.g. ~/.sspwd/default/"""
+    """Return the vault directory for a given project, e.g. ~/.sspwd/default/"""
     root = base or (Path.home() / ".sspwd")
     return root / project
+
+
+# ---------------------------------------------------------------------------
+# Storage class
+# ---------------------------------------------------------------------------
 
 
 class SQLiteStorage(BaseStorage):
@@ -59,7 +94,7 @@ class SQLiteStorage(BaseStorage):
         Project/workspace name. Determines the subdirectory used.
         Defaults to ``"default"``.
     vault_dir:
-        Override the full path to the vault directory (ignores project + base).
+        Override the full path to the vault directory (ignores project).
         Useful for tests.
     """
 
@@ -69,22 +104,19 @@ class SQLiteStorage(BaseStorage):
         project: str = _DEFAULT_PROJECT,
         vault_dir: Optional[Path] = None,
     ) -> None:
-        if vault_dir:
-            self._vault_dir = Path(vault_dir)
-        else:
-            self._vault_dir = project_dir(project)
-
+        self._vault_dir = Path(vault_dir) if vault_dir else project_dir(project)
         self._vault_dir.mkdir(parents=True, exist_ok=True)
-        self._icons_dir = self._vault_dir / _ICONS_DIRNAME
+
+        self._icons_dir     = self._vault_dir / _ICONS_DIRNAME
         self._icons_dir.mkdir(exist_ok=True)
 
         self._db_path       = self._vault_dir / _DB_FILENAME
         self._salt_path     = self._vault_dir / _SALT_FILENAME
         self._sentinel_path = self._vault_dir / _SENTINEL_FILENAME
 
-        salt = self._load_or_create_salt()
-        key  = _derive_key(master_password, salt)
-        self._fernet = Fernet(key)
+        salt       = self._load_or_create_salt()
+        key        = _derive_key(master_password, salt)
+        self._aesgcm = AESGCM(key)
 
         self._write_or_verify_sentinel()
         self.initialize()
@@ -114,16 +146,18 @@ class SQLiteStorage(BaseStorage):
 
     def _write_or_verify_sentinel(self) -> None:
         """
-        First open: encrypt a known plaintext and save it.
-        Subsequent opens: decrypt it — raises InvalidToken if password is wrong.
+        First open: encrypt a known plaintext and write to verify.bin.
+        Subsequent opens: decrypt it — raises InvalidTag on wrong password.
         """
         if self._sentinel_path.exists():
-            # Will raise cryptography.fernet.InvalidToken on wrong key
-            self._fernet.decrypt(self._sentinel_path.read_bytes())
+            raw = self._sentinel_path.read_bytes()
+            nonce, blob = raw[:_NONCE_LEN], raw[_NONCE_LEN:]
+            # Raises cryptography.exceptions.InvalidTag on wrong key
+            self._aesgcm.decrypt(nonce, blob, None)
         else:
-            self._sentinel_path.write_bytes(
-                self._fernet.encrypt(_SENTINEL_PLAINTEXT)
-            )
+            nonce = os.urandom(_NONCE_LEN)
+            blob  = self._aesgcm.encrypt(nonce, _SENTINEL_PLAINTEXT, None)
+            self._sentinel_path.write_bytes(nonce + blob)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path)
@@ -131,10 +165,16 @@ class SQLiteStorage(BaseStorage):
         return conn
 
     def _encrypt(self, plaintext: str) -> str:
-        return self._fernet.encrypt(plaintext.encode()).decode()
+        """Encrypt a string → base64(nonce + ciphertext+tag)."""
+        nonce      = os.urandom(_NONCE_LEN)
+        ciphertext = self._aesgcm.encrypt(nonce, plaintext.encode(), None)
+        return base64.urlsafe_b64encode(nonce + ciphertext).decode()
 
-    def _decrypt(self, ciphertext: str) -> str:
-        return self._fernet.decrypt(ciphertext.encode()).decode()
+    def _decrypt(self, token: str) -> str:
+        """Decrypt a base64(nonce + ciphertext+tag) token → plaintext string."""
+        raw        = base64.urlsafe_b64decode(token.encode())
+        nonce, blob = raw[:_NONCE_LEN], raw[_NONCE_LEN:]
+        return self._aesgcm.decrypt(nonce, blob, None).decode()
 
     def _row_to_entry(self, row: sqlite3.Row) -> PasswordEntry:
         return PasswordEntry(
@@ -187,7 +227,7 @@ class SQLiteStorage(BaseStorage):
                     now,
                 ),
             )
-            entry.id = cur.lastrowid
+            entry.id        = cur.lastrowid
             entry.created_at = datetime.fromisoformat(now)
             entry.updated_at = entry.created_at
         return entry
@@ -256,7 +296,6 @@ class SQLiteStorage(BaseStorage):
     # ------------------------------------------------------------------
 
     def save_icon(self, filename: str, data: bytes) -> Path:
-        """Write icon bytes to the icons directory. Returns the saved path."""
         dest = self._icons_dir / filename
         dest.write_bytes(data)
         return dest

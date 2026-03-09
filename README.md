@@ -1,7 +1,7 @@
 # sspwd – super secret password
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://img.shields.io/pypi/v/sspwd?color=blue&label=PyPI)](https://pypi.org/project/sspwd/)
 [![Tests](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml/badge.svg)](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/yauheniya-ai/54efe8e9445e06c13617aa69bae44b21/raw/coverage.json)](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml)
@@ -22,10 +22,25 @@ derived from your master password. Nothing leaves your machine.
 
 ## Tech Stack
 
+**Backend**
 - <img src="https://api.iconify.design/devicon:python.svg" width="16" height="16"> Python — package language
-- <img src="https://api.iconify.design/devicon:fastapi.svg" width="16" height="16"> FastAPI — backend for the web UI
-- <img src="https://api.iconify.design/devicon:react.svg" width="16" height="16"> React — interactive frontend
-- <img src="https://api.iconify.design/devicon:sqlite.svg" width="16" height="16"> SQLite – local database for original receipts and extracted data
+- <img src="https://api.iconify.design/devicon:fastapi.svg" width="16" height="16"> FastAPI — REST API for the web UI
+- <img src="https://api.iconify.design/devicon:sqlite.svg" width="16" height="16"> SQLite — local encrypted vault database
+- <img src="https://api.iconify.design/streamline-plump-color:device-database-encryption-1-flat.svg" width="16" height="16"> Argon2id + AES-256-GCM — key derivation and authenticated encryption via `argon2-cffi` + `cryptography`
+- <img src="https://api.iconify.design/devicon:pytest.svg" width="16" height="16"> pytest — test suite with coverage reporting
+
+**Frontend**
+- <img src="https://api.iconify.design/devicon:react.svg" width="16" height="16"> React — interactive UI
+- <img src="https://api.iconify.design/devicon:vitejs.svg" width="16" height="16"> Vite — frontend build tool and dev server
+- <img src="https://api.iconify.design/devicon:typescript.svg" width="16" height="16"> TypeScript — type-safe components
+- <img src="https://api.iconify.design/devicon:tailwindcss.svg" width="16" height="16"> Tailwind CSS — utility-first styling
+- <img src="https://avatars.githubusercontent.com/u/50354982?v=4" width="16" height="16"> Iconify — service and brand icons
+
+**CLI**
+- <img src="https://api.iconify.design/devicon:clickhouse.svg" width="16" height="16"> Click — CLI commands (`serve`, `add`, `list`, `get`, `delete`, `projects`)
+
+**Packaging**
+- <img src="https://api.iconify.design/devicon:pypi.svg" width="16" height="16"> PyPI — distributed as an installable Python package
 
 ## Installation
 
@@ -79,13 +94,24 @@ sspwd serve --vault-dir /path/to/my/vault
 
 | Detail | Value |
 |---|---|
-| Encryption | AES-128-CBC via [Fernet](https://cryptography.io/en/latest/fernet/) |
-| Key derivation | PBKDF2-HMAC-SHA256, 390 000 iterations |
-| Storage | SQLite (`~/.sspwd/vault.db`) |
-| Key never stored | Only a random 32-byte salt is persisted |
+| Encryption | AES-256-GCM (authenticated — detects tampering via built-in auth tag) |
+| Key derivation | [Argon2id](https://github.com/hynek/argon2-cffi) — memory-hard, OWASP 2024 recommended |
+| Argon2id parameters | `time=3`, `memory=64 MiB`, `parallelism=2` |
+| Key size | 256-bit |
+| Nonce | 12 bytes, random per encryption call (never reused) |
+| Storage | SQLite (`~/.sspwd/{project}/vault.db`) |
+| Key never stored | Derived in memory on unlock, discarded on server exit |
 
-The master password is required every time you start the app. There is no
-"remember me" — the derived key lives only in process memory.
+**Vault files explained**
+
+| File | Purpose |
+|---|---|
+| `salt.bin` | 32 random bytes, created once. Makes your key unique to this vault — the same password on two vaults produces two completely different keys. Not secret on its own. |
+| `verify.bin` | A tiny AES-256-GCM encrypted file containing a known plaintext. Decrypted on every unlock to verify the master password immediately — wrong password → `InvalidTag` → 401, before any entry data is touched. |
+| `vault.db` | SQLite database. All `password` and `notes` fields are AES-256-GCM encrypted. Titles and usernames are stored in plaintext for search. |
+| `icons/` | User-uploaded icon files, served locally. |
+
+The master password is never stored anywhere. It is entered in the browser when unlocking a project, used to derive the key via Argon2id, and the key lives only in process memory for the lifetime of the server session.
 
 ---
 
