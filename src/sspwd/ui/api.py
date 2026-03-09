@@ -7,7 +7,7 @@ All routes are mounted under /api/v1 by server.py.
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ..storage.base import PasswordEntry
 from ..storage.sqlite import SQLiteStorage
@@ -47,8 +47,7 @@ class EntryOut(EntryIn):
     created_at: str
     updated_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ------------------------------------------------------------------

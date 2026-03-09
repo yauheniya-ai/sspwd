@@ -156,7 +156,11 @@ class SQLiteStorage(BaseStorage):
             if search:
                 pattern = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT * FROM entries WHERE title LIKE ? OR username LIKE ? OR url LIKE ? ORDER BY title",
+                    """SELECT * FROM entries
+                       WHERE title LIKE ?
+                          OR username LIKE ?
+                          OR (url IS NOT NULL AND url LIKE ?)
+                       ORDER BY title""",
                     (pattern, pattern, pattern),
                 ).fetchall()
             else:
