@@ -20,6 +20,13 @@ derived from your master password. Nothing leaves your machine.
 </p>
 ---
 
+## Tech Stack
+
+- <img src="https://api.iconify.design/devicon:python.svg" width="16" height="16"> Python — package language
+- <img src="https://api.iconify.design/devicon:fastapi.svg" width="16" height="16"> FastAPI — backend for the web UI
+- <img src="https://api.iconify.design/devicon:react.svg" width="16" height="16"> React — interactive frontend
+- <img src="https://api.iconify.design/devicon:sqlite.svg" width="16" height="16"> SQLite – local database for original receipts and extracted data
+
 ## Installation
 
 ```bash

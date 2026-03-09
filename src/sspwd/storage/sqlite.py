@@ -1,10 +1,16 @@
 """
 SQLite storage backend with Fernet symmetric encryption.
 
+Vault layout:
+    ~/.sspwd/{project}/vault.db   — encrypted entries
+    ~/.sspwd/{project}/salt.bin   — PBKDF2 salt (never changes once created)
+    ~/.sspwd/{project}/icons/     — user-uploaded company icons
+
 The master password is used to derive an AES-128 key via PBKDF2.
-The derived key is never stored on disk — only the encrypted ciphertext
-and a PBKDF2 salt are written to the database.
+The derived key is never stored on disk.
 """
+
+from __future__ import annotations
 
 import base64
 import hashlib
@@ -18,12 +24,13 @@ from cryptography.fernet import Fernet
 
 from .base import BaseStorage, PasswordEntry
 
-_DB_FILENAME = "vault.db"
+_DB_FILENAME   = "vault.db"
 _SALT_FILENAME = "salt.bin"
+_ICONS_DIRNAME = "icons"
+_DEFAULT_PROJECT = "default"
 
 
 def _derive_key(master_password: str, salt: bytes) -> bytes:
-    """Derive a 32-byte Fernet-compatible key from the master password."""
     dk = hashlib.pbkdf2_hmac(
         "sha256",
         master_password.encode(),
@@ -34,37 +41,61 @@ def _derive_key(master_password: str, salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(dk)
 
 
+def project_dir(project: str = _DEFAULT_PROJECT, base: Optional[Path] = None) -> Path:
+    """Return the directory for a given project, e.g. ~/.sspwd/default/"""
+    root = base or (Path.home() / ".sspwd")
+    return root / project
+
+
 class SQLiteStorage(BaseStorage):
     """
-    Stores password entries in a local SQLite database.
-
-    All sensitive fields (password, notes) are encrypted with Fernet
-    before being written to disk.
-
     Parameters
     ----------
-    vault_dir:
-        Directory that will hold ``vault.db`` and ``salt.bin``.
-        Defaults to ``~/.sspwd``.
     master_password:
         The user's master password used to derive the encryption key.
+    project:
+        Project/workspace name. Determines the subdirectory used.
+        Defaults to ``"default"``.
+    vault_dir:
+        Override the full path to the vault directory (ignores project + base).
+        Useful for tests.
     """
 
     def __init__(
         self,
         master_password: str,
+        project: str = _DEFAULT_PROJECT,
         vault_dir: Optional[Path] = None,
     ) -> None:
-        self._vault_dir = Path(vault_dir) if vault_dir else Path.home() / ".sspwd"
+        if vault_dir:
+            self._vault_dir = Path(vault_dir)
+        else:
+            self._vault_dir = project_dir(project)
+
         self._vault_dir.mkdir(parents=True, exist_ok=True)
-        self._db_path = self._vault_dir / _DB_FILENAME
+        self._icons_dir = self._vault_dir / _ICONS_DIRNAME
+        self._icons_dir.mkdir(exist_ok=True)
+
+        self._db_path   = self._vault_dir / _DB_FILENAME
         self._salt_path = self._vault_dir / _SALT_FILENAME
 
         salt = self._load_or_create_salt()
-        key = _derive_key(master_password, salt)
+        key  = _derive_key(master_password, salt)
         self._fernet = Fernet(key)
 
         self.initialize()
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def icons_dir(self) -> Path:
+        return self._icons_dir
+
+    @property
+    def vault_dir(self) -> Path:
+        return self._vault_dir
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -202,3 +233,16 @@ class SQLiteStorage(BaseStorage):
             ).rowcount
         if rowcount == 0:
             raise KeyError(f"No entry with id={entry_id}")
+
+    # ------------------------------------------------------------------
+    # Icon helpers
+    # ------------------------------------------------------------------
+
+    def save_icon(self, filename: str, data: bytes) -> Path:
+        """Write icon bytes to the icons directory. Returns the saved path."""
+        dest = self._icons_dir / filename
+        dest.write_bytes(data)
+        return dest
+
+    def list_icons(self) -> list[str]:
+        return [f.name for f in self._icons_dir.iterdir() if f.is_file()]

@@ -1,14 +1,18 @@
 """
-Command-line interface for sspwd.
+CLI for sspwd.
 
-Usage
------
-    sspwd serve               # start the web UI (prompts for master password)
-    sspwd add                 # add a new entry interactively
-    sspwd list                # list all entries
-    sspwd get  <id>           # show a single entry (password revealed)
-    sspwd delete <id>         # delete an entry
-    sspwd version             # print version and exit
+Commands
+--------
+    sspwd serve   [--project NAME]   Start the web UI
+    sspwd add     [--project NAME]   Add entry interactively
+    sspwd list    [--project NAME]   List entries
+    sspwd get     [--project NAME]   Show one entry
+    sspwd delete  [--project NAME]   Delete an entry
+    sspwd version                    Print version
+    sspwd projects                   List existing projects
+
+Projects are stored as separate vaults under ~/.sspwd/{project}/vault.db.
+The default project is named "default".
 """
 
 import sys
@@ -18,17 +22,23 @@ from typing import Optional
 import click
 
 from .__version__ import __version__
-from .storage.sqlite import SQLiteStorage
+from .storage.sqlite import SQLiteStorage, project_dir, _DEFAULT_PROJECT
 from .storage.base import PasswordEntry
 
-
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Shared option decorator
 # ---------------------------------------------------------------------------
 
+_project_option = click.option(
+    "--project", "-p",
+    default=_DEFAULT_PROJECT,
+    show_default=True,
+    help="Project / workspace name (subdirectory of ~/.sspwd/).",
+)
 
-def _get_storage(master_password: str, vault_dir: Optional[Path] = None) -> SQLiteStorage:
-    return SQLiteStorage(master_password=master_password, vault_dir=vault_dir)
+
+def _get_storage(master: str, project: str, vault_dir: Optional[Path] = None) -> SQLiteStorage:
+    return SQLiteStorage(master_password=master, project=project, vault_dir=vault_dir)
 
 
 def _prompt_master() -> str:
@@ -52,78 +62,70 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
-@click.option("--port", default=7523, show_default=True, help="TCP port.")
-@click.option("--no-browser", is_flag=True, default=False, help="Do not open browser.")
-@click.option("--vault-dir", default=None, type=click.Path(), help="Custom vault directory.")
-def serve(host: str, port: int, no_browser: bool, vault_dir: Optional[str]) -> None:
-    """Start the web UI."""
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option("--port", default=7523, show_default=True)
+@click.option("--no-browser", is_flag=True, default=False)
+def serve(host: str, port: int, no_browser: bool) -> None:
+    """Start the web UI. Projects are unlocked on demand in the browser."""
     from .ui.server import UIServer
-
-    master = _prompt_master()
-    storage = _get_storage(master, Path(vault_dir) if vault_dir else None)
-    server = UIServer(
-        storage=storage,
-        host=host,
-        port=port,
-        open_browser=not no_browser,
-    )
+    server = UIServer(host=host, port=port, open_browser=not no_browser)
     server.start(block=True)
 
 
 @cli.command("add")
+@_project_option
 @click.option("--vault-dir", default=None, type=click.Path())
-def add_entry(vault_dir: Optional[str]) -> None:
+def add_entry(project: str, vault_dir: Optional[str]) -> None:
     """Add a new password entry interactively."""
-    master = _prompt_master()
-    storage = _get_storage(master, Path(vault_dir) if vault_dir else None)
+    master  = _prompt_master()
+    storage = _get_storage(master, project, Path(vault_dir) if vault_dir else None)
 
-    title = click.prompt("Title")
+    title    = click.prompt("Title")
+    category = click.prompt("Category")
     username = click.prompt("Username")
     password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
-    url = click.prompt("URL (optional)", default="")
-    notes = click.prompt("Notes (optional)", default="")
+    url      = click.prompt("URL (optional)", default="")
+    notes    = click.prompt("Notes (optional)", default="")
 
     entry = PasswordEntry(
-        id=None,
-        title=title,
-        username=username,
-        password=password,
-        url=url or None,
-        notes=notes or None,
+        id=None, title=title, username=username, password=password,
+        url=url or None, notes=notes or None,
     )
     created = storage.add(entry)
-    click.echo(click.style(f"✓ Saved (id={created.id})", fg="green"))
+    click.echo(click.style(f"✓ Saved '{title}' (id={created.id}) in project '{project}'", fg="green"))
 
 
 @cli.command("list")
+@_project_option
 @click.option("--search", "-s", default=None, help="Filter by title / username / URL.")
 @click.option("--vault-dir", default=None, type=click.Path())
-def list_entries(search: Optional[str], vault_dir: Optional[str]) -> None:
-    """List all stored entries."""
-    master = _prompt_master()
-    storage = _get_storage(master, Path(vault_dir) if vault_dir else None)
+def list_entries(project: str, search: Optional[str], vault_dir: Optional[str]) -> None:
+    """List all stored entries for a project."""
+    master  = _prompt_master()
+    storage = _get_storage(master, project, Path(vault_dir) if vault_dir else None)
 
     entries = storage.list(search=search)
     if not entries:
         click.echo("No entries found.")
         return
 
-    click.echo(f"\n{'ID':>4}  {'Title':<30}  {'Username':<25}  URL")
+    click.echo(f"\n  Project: {project}\n")
+    click.echo(f"{'ID':>4}  {'Title':<30}  {'Username':<25}  URL")
     click.echo("-" * 80)
     for e in entries:
         click.echo(f"{e.id:>4}  {e.title:<30}  {e.username:<25}  {e.url or ''}")
 
 
 @cli.command("get")
+@_project_option
 @click.argument("entry_id", type=int)
 @click.option("--vault-dir", default=None, type=click.Path())
-def get_entry(entry_id: int, vault_dir: Optional[str]) -> None:
-    """Show a single entry including the password."""
-    master = _prompt_master()
-    storage = _get_storage(master, Path(vault_dir) if vault_dir else None)
+def get_entry(project: str, entry_id: int, vault_dir: Optional[str]) -> None:
+    """Show a single entry (reveals password)."""
+    master  = _prompt_master()
+    storage = _get_storage(master, project, Path(vault_dir) if vault_dir else None)
+    entry   = storage.get(entry_id)
 
-    entry = storage.get(entry_id)
     if entry is None:
         click.echo(click.style(f"Entry {entry_id} not found.", fg="red"), err=True)
         sys.exit(1)
@@ -137,16 +139,17 @@ def get_entry(entry_id: int, vault_dir: Optional[str]) -> None:
 
 
 @cli.command("delete")
+@_project_option
 @click.argument("entry_id", type=int)
-@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation.")
+@click.option("--yes", "-y", is_flag=True, default=False)
 @click.option("--vault-dir", default=None, type=click.Path())
-def delete_entry(entry_id: int, yes: bool, vault_dir: Optional[str]) -> None:
+def delete_entry(project: str, entry_id: int, yes: bool, vault_dir: Optional[str]) -> None:
     """Delete an entry by ID."""
-    master = _prompt_master()
-    storage = _get_storage(master, Path(vault_dir) if vault_dir else None)
+    master  = _prompt_master()
+    storage = _get_storage(master, project, Path(vault_dir) if vault_dir else None)
 
     if not yes:
-        click.confirm(f"Delete entry {entry_id}?", abort=True)
+        click.confirm(f"Delete entry {entry_id} from project '{project}'?", abort=True)
 
     try:
         storage.delete(entry_id)
@@ -154,6 +157,25 @@ def delete_entry(entry_id: int, yes: bool, vault_dir: Optional[str]) -> None:
     except KeyError:
         click.echo(click.style(f"Entry {entry_id} not found.", fg="red"), err=True)
         sys.exit(1)
+
+
+@cli.command("projects")
+def list_projects() -> None:
+    """List all existing projects under ~/.sspwd/."""
+    root = Path.home() / ".sspwd"
+    if not root.exists():
+        click.echo("No projects found (vault directory does not exist yet).")
+        return
+
+    projects = [d.name for d in sorted(root.iterdir()) if d.is_dir() and (d / "vault.db").exists()]
+    if not projects:
+        click.echo("No projects found.")
+        return
+
+    click.echo(f"\n  Vault: {root}\n")
+    for name in projects:
+        size = (root / name / "vault.db").stat().st_size
+        click.echo(f"  {'●'} {name:<30} ({size:,} bytes)")
 
 
 @cli.command("version")
