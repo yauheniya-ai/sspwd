@@ -54,7 +54,8 @@ class TestInit:
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         s = SQLiteStorage(master_password="pw")
-        assert s._vault_dir == tmp_path / ".sspwd"
+        # default project is "default", so vault lives at ~/.sspwd/default/
+        assert s._vault_dir == tmp_path / ".sspwd" / "default"
 
 
 # ---------------------------------------------------------------------------
@@ -232,19 +233,17 @@ class TestDelete:
 class TestEncryption:
     def test_wrong_master_fails_on_get(self, tmp_path: Path) -> None:
         s1 = SQLiteStorage(master_password="correct", vault_dir=tmp_path)
-        entry = s1.add(_entry(password="secret"))
-
-        s2 = SQLiteStorage(master_password="wrong", vault_dir=tmp_path)
+        s1.add(_entry(password="secret"))
+        # Wrong password raises InvalidToken at __init__ time (sentinel check)
         with pytest.raises(Exception):
-            s2.get(entry.id)
+            SQLiteStorage(master_password="wrong", vault_dir=tmp_path)
 
     def test_wrong_master_fails_on_list(self, tmp_path: Path) -> None:
         s1 = SQLiteStorage(master_password="correct", vault_dir=tmp_path)
         s1.add(_entry(password="secret"))
-
-        s2 = SQLiteStorage(master_password="wrong", vault_dir=tmp_path)
+        # Wrong password raises InvalidToken at __init__ time (sentinel check)
         with pytest.raises(Exception):
-            s2.list()
+            SQLiteStorage(master_password="wrong", vault_dir=tmp_path)
 
     def test_correct_master_decrypts(self, tmp_path: Path) -> None:
         s1 = SQLiteStorage(master_password="correct", vault_dir=tmp_path)

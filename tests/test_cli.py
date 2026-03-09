@@ -97,8 +97,8 @@ class TestAddCommand:
     def test_add_entry(self, tmp_path: Path) -> None:
         SQLiteStorage(master_password="pw", vault_dir=tmp_path)  # init salt
         runner = CliRunner()
-        # inputs: master password, title, username, password (×2), url, notes
-        inputs = "pw\nNotion\nbob@example.com\nmypassword\nmypassword\nhttps://notion.so\n\n"
+        # prompt order: master pw, title, category, username, password (×2), url, notes
+        inputs = "pw\nNotion\nSoftware\nbob@example.com\nmypassword\nmypassword\nhttps://notion.so\n\n"
         result = runner.invoke(cli, ["add", "--vault-dir", str(tmp_path)], input=inputs)
         assert result.exit_code == 0
         assert "Saved" in result.output
@@ -106,7 +106,8 @@ class TestAddCommand:
     def test_add_persists_to_storage(self, tmp_path: Path) -> None:
         SQLiteStorage(master_password="pw", vault_dir=tmp_path)
         runner = CliRunner()
-        inputs = "pw\nFigma\ncarol@example.com\nsecretpw\nsecretpw\n\n\n"
+        # prompt order: master pw, title, category, username, password (×2), url, notes
+        inputs = "pw\nFigma\nDesign\ncarol@example.com\nsecretpw\nsecretpw\n\n\n"
         runner.invoke(cli, ["add", "--vault-dir", str(tmp_path)], input=inputs)
 
         storage = SQLiteStorage(master_password="pw", vault_dir=tmp_path)

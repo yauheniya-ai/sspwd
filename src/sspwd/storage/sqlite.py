@@ -24,10 +24,12 @@ from cryptography.fernet import Fernet
 
 from .base import BaseStorage, PasswordEntry
 
-_DB_FILENAME   = "vault.db"
-_SALT_FILENAME = "salt.bin"
-_ICONS_DIRNAME = "icons"
-_DEFAULT_PROJECT = "default"
+_DB_FILENAME      = "vault.db"
+_SALT_FILENAME    = "salt.bin"
+_SENTINEL_FILENAME = "verify.bin"   # Fernet-encrypted known plaintext; proves key is correct
+_SENTINEL_PLAINTEXT = b"sspwd-ok"
+_ICONS_DIRNAME    = "icons"
+_DEFAULT_PROJECT  = "default"
 
 
 def _derive_key(master_password: str, salt: bytes) -> bytes:
@@ -76,13 +78,15 @@ class SQLiteStorage(BaseStorage):
         self._icons_dir = self._vault_dir / _ICONS_DIRNAME
         self._icons_dir.mkdir(exist_ok=True)
 
-        self._db_path   = self._vault_dir / _DB_FILENAME
-        self._salt_path = self._vault_dir / _SALT_FILENAME
+        self._db_path       = self._vault_dir / _DB_FILENAME
+        self._salt_path     = self._vault_dir / _SALT_FILENAME
+        self._sentinel_path = self._vault_dir / _SENTINEL_FILENAME
 
         salt = self._load_or_create_salt()
         key  = _derive_key(master_password, salt)
         self._fernet = Fernet(key)
 
+        self._write_or_verify_sentinel()
         self.initialize()
 
     # ------------------------------------------------------------------
@@ -107,6 +111,19 @@ class SQLiteStorage(BaseStorage):
         salt = os.urandom(32)
         self._salt_path.write_bytes(salt)
         return salt
+
+    def _write_or_verify_sentinel(self) -> None:
+        """
+        First open: encrypt a known plaintext and save it.
+        Subsequent opens: decrypt it — raises InvalidToken if password is wrong.
+        """
+        if self._sentinel_path.exists():
+            # Will raise cryptography.fernet.InvalidToken on wrong key
+            self._fernet.decrypt(self._sentinel_path.read_bytes())
+        else:
+            self._sentinel_path.write_bytes(
+                self._fernet.encrypt(_SENTINEL_PLAINTEXT)
+            )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path)
