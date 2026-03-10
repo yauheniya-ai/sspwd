@@ -191,6 +191,14 @@ The master password is never stored anywhere. It is entered in the browser UI, u
 
 **sspwd's advantage** is zero setup, zero accounts, zero cloud, and the ability to keep personal, work, and project credentials in cleanly separated encrypted vaults — with a searchable, filterable UI accessible from any browser on localhost.
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-change`)
+3. Make your changes
+4. Run the test suite: `pytest --cov=src --cov-report=term-missing`
+5. Submit a pull request
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
