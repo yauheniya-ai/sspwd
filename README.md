@@ -24,7 +24,7 @@ derived from your master password. Nothing leaves your machine.
 - <img src="https://api.iconify.design/devicon:python.svg" width="16" height="16"> Python — package language
 - <img src="https://api.iconify.design/devicon:fastapi.svg" width="16" height="16"> FastAPI — REST API for the web UI
 - <img src="https://api.iconify.design/devicon:sqlite.svg" width="16" height="16"> SQLite — local encrypted vault database
-- <img src="https://api.iconify.design/streamline-plump-color:device-database-encryption-1-flat.svg" width="16" height="16"> Argon2id + AES-256-GCM — key derivation and authenticated encryption via `argon2-cffi` + `cryptography`
+- <img src="https://api.iconify.design/streamline-plump-color:device-database-encryption-1-flat.svg" width="16" height="16"> Argon2id + AES-256-GCM — key derivation and authenticated encryption
 - <img src="https://api.iconify.design/devicon:pytest.svg" width="16" height="16"> pytest — test suite with coverage reporting
 
 **Frontend**
@@ -95,10 +95,9 @@ sspwd projects
 
 ```mermaid
 flowchart TD
-    A([sspwd serve]) --> B[FastAPI server starts no password required]
-    B --> C[Browser opens UI loads on mockData]
+    A([sspwd serve]) --> B[FastAPI server starts ➜ opens UI]
 
-    C --> D{User selects a project}
+    B --> D{User selects a project}
 
     D -->|New project| E[Enter name + set master password]
     D -->|Existing project| F[Enter master password]
