@@ -97,7 +97,7 @@ sspwd projects
 flowchart TD
     A([sspwd serve]) --> B[FastAPI server starts ➜ opens UI]
 
-    B --> D{User selects a project}
+    B --> D{Selects<br>a project}
 
     D -->|New project| E[Enter name + set master password]
     D -->|Existing project| F[Enter master password]
@@ -105,12 +105,11 @@ flowchart TD
     E --> G[Argon2id derives 256-bit key from password + salt]
     F --> G
 
-    G --> H{verify.bin decryption}
-    H -->|InvalidTag| I[Wrong password 401 Unauthorized]
-    H -->|OK| J[Project unlocked entries loaded]
+    G --> H{verify.bin<br>decryption}
+    H -->|InvalidTag| I[Wrong password ➜ 401 Unauthorized]
+    H -->|OK| J[Project unlocked ➜ entries loaded]
 
-    J --> K[Browse / search entries in UI]
-    K --> L{Action}
+    J --> L{Action}
 
     L -->|Add / Edit| M[AES-256-GCM encrypt password + notes]
     M --> N[(~/.sspwd/project/vault.db )]
