@@ -1,67 +1,84 @@
 """
 REST API — mounted under /api/v1 by server.py.
 
-Multi-project design
---------------------
-The server starts with NO storage loaded.
-Each project must be unlocked by POSTing its master password to
-/api/v1/projects/{name}/unlock.  Unlocked storages are cached in
-_sessions (memory only — never written to disk).
+All field names use camelCase in JSON to match the TypeScript frontend.
 """
-
 from __future__ import annotations
 
 import mimetypes
 import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
-from ..storage.base import PasswordEntry
+from ..storage.base import Company, CompanyAddress, PasswordEntry
 from ..storage.sqlite import SQLiteStorage, project_dir
 
 router = APIRouter(prefix="/api/v1")
 
-# project_name → unlocked SQLiteStorage instance
 _sessions: dict[str, SQLiteStorage] = {}
 
 ALLOWED_IMAGE_TYPES = {"image/png", "image/svg+xml", "image/webp", "image/jpeg"}
-MAX_ICON_BYTES = 2 * 1024 * 1024  # 2 MB
+MAX_ICON_BYTES = 2 * 1024 * 1024
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
+def set_storage(storage: SQLiteStorage) -> None:
+    _sessions["default"] = storage
 
 
 def _require(project: str) -> SQLiteStorage:
-    storage = _sessions.get(project)
-    if storage is None:
+    s = _sessions.get(project)
+    if s is None:
         raise HTTPException(
             status_code=401,
             detail=f"Project '{project}' is locked. POST /api/v1/projects/{project}/unlock first.",
         )
-    return storage
+    return s
 
 
-# ---------------------------------------------------------------------------
-# Pydantic schemas
-# ---------------------------------------------------------------------------
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
+
+class AddressSchema(BaseModel):
+    street:      Optional[str] = None
+    city:        Optional[str] = None
+    state:       Optional[str] = None
+    postcode:    Optional[str] = None
+    country:     str           = ""
+    countryCode: str           = ""
+
+
+class CompanyIn(BaseModel):
+    name:    str
+    icon:    Optional[dict] = None          # {type, value}
+    address: Optional[AddressSchema] = None
+    revenue: Optional[float] = None
+
+
+class CompanyOut(CompanyIn):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EntryIn(BaseModel):
-    title: str
-    username: str
-    password: str
-    url: Optional[str] = None
-    notes: Optional[str] = None
+    title:          str
+    username:       Optional[str]       = None
+    email:          Optional[str]       = None
+    password:       Optional[str]       = None
+    url:            Optional[str]       = None
+    notes:          Optional[str]       = None
+    category:       str                 = "Other"
+    tags:           list[str]           = []
+    login_methods:  list[str]           = []
+    company_id:     Optional[int]       = None
+    user_created_at: Optional[str]      = None   # ISO string
 
 
 class EntryOut(EntryIn):
-    id: int
+    id:         int
     created_at: str
     updated_at: str
     model_config = ConfigDict(from_attributes=True)
@@ -72,23 +89,67 @@ class UnlockIn(BaseModel):
 
 
 class ProjectIn(BaseModel):
-    name: str
+    name:     str
     password: str
 
 
 class IconOut(BaseModel):
     filename: str
-    url: str
+    url:      str
 
 
-# ---------------------------------------------------------------------------
-# Projects
-# ---------------------------------------------------------------------------
+# ── helpers ────────────────────────────────────────────────────────────────────
 
+def _parse_dt(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _entry_in_to_obj(body: EntryIn) -> PasswordEntry:
+    return PasswordEntry(
+        id              = None,
+        title           = body.title,
+        username        = body.username,
+        email           = body.email,
+        password        = body.password,
+        url             = body.url,
+        notes           = body.notes,
+        category        = body.category or "Other",
+        tags            = body.tags or [],
+        login_methods   = body.login_methods or [],
+        company_id      = body.company_id,
+        user_created_at = _parse_dt(body.user_created_at),
+    )
+
+
+def _company_in_to_obj(body: CompanyIn, company_id: Optional[int] = None) -> Company:
+    addr = None
+    if body.address and body.address.country:
+        addr = CompanyAddress(
+            country      = body.address.country,
+            country_code = body.address.countryCode,
+            street       = body.address.street,
+            city         = body.address.city,
+            state        = body.address.state,
+            postcode     = body.address.postcode,
+        )
+    return Company(
+        id      = company_id,
+        name    = body.name,
+        icon    = body.icon,
+        address = addr,
+        revenue = body.revenue,
+    )
+
+
+# ── projects ──────────────────────────────────────────────────────────────────
 
 @router.get("/projects", response_model=list[str])
 def list_projects():
-    """All project names that exist under ~/.sspwd/"""
     root = Path.home() / ".sspwd"
     if not root.exists():
         return []
@@ -100,23 +161,16 @@ def list_projects():
 
 @router.get("/projects/unlocked", response_model=list[str])
 def list_unlocked():
-    """Projects currently unlocked in this server session."""
     return list(_sessions.keys())
 
 
 @router.post("/projects/{name}/unlock", status_code=200)
 def unlock_project(name: str, body: UnlockIn):
-    """
-    Unlock an existing project with its master password.
-    The decrypted storage is cached in memory for the lifetime of the server.
-    """
     vault = project_dir(name)
     if not (vault / "vault.db").exists():
         raise HTTPException(status_code=404, detail=f"Project '{name}' does not exist.")
     try:
         storage = SQLiteStorage(master_password=body.password, project=name)
-        # Verify the password is correct by attempting a read
-        storage.list()
         _sessions[name] = storage
     except Exception:
         raise HTTPException(status_code=401, detail="Wrong master password.")
@@ -125,7 +179,6 @@ def unlock_project(name: str, body: UnlockIn):
 
 @router.post("/projects", status_code=201)
 def create_project(body: ProjectIn):
-    """Create a new project (vault) with a master password."""
     name = body.name.strip()
     if not name or "/" in name or "\\" in name:
         raise HTTPException(status_code=400, detail="Invalid project name.")
@@ -139,32 +192,20 @@ def create_project(body: ProjectIn):
 
 @router.delete("/projects/{name}/lock", status_code=200)
 def lock_project(name: str):
-    """Remove a project from the in-memory session (lock it)."""
     _sessions.pop(name, None)
     return {"project": name, "status": "locked"}
 
 
-# ---------------------------------------------------------------------------
-# Password entry CRUD  (all require ?project=name)
-# ---------------------------------------------------------------------------
-
+# ── entries ────────────────────────────────────────────────────────────────────
 
 @router.get("/entries", response_model=list[EntryOut])
-def list_entries(
-    project: str = Query(..., description="Project name"),
-    search: Optional[str] = Query(default=None),
-):
+def list_entries(project: str = Query(...), search: Optional[str] = Query(default=None)):
     return [e.to_dict() for e in _require(project).list(search=search)]
 
 
 @router.post("/entries", response_model=EntryOut, status_code=201)
-def create_entry(
-    body: EntryIn,
-    project: str = Query(...),
-):
-    entry = PasswordEntry(id=None, title=body.title, username=body.username,
-                          password=body.password, url=body.url, notes=body.notes)
-    return _require(project).add(entry).to_dict()
+def create_entry(body: EntryIn, project: str = Query(...)):
+    return _require(project).add(_entry_in_to_obj(body)).to_dict()
 
 
 @router.get("/entries/{entry_id}", response_model=EntryOut)
@@ -177,10 +218,10 @@ def get_entry(entry_id: int, project: str = Query(...)):
 
 @router.put("/entries/{entry_id}", response_model=EntryOut)
 def update_entry(entry_id: int, body: EntryIn, project: str = Query(...)):
-    entry = PasswordEntry(id=entry_id, title=body.title, username=body.username,
-                          password=body.password, url=body.url, notes=body.notes)
+    obj    = _entry_in_to_obj(body)
+    obj.id = entry_id
     try:
-        return _require(project).update(entry).to_dict()
+        return _require(project).update(obj).to_dict()
     except KeyError:
         raise HTTPException(status_code=404, detail="Entry not found.")
 
@@ -193,24 +234,56 @@ def delete_entry(entry_id: int, project: str = Query(...)):
         raise HTTPException(status_code=404, detail="Entry not found.")
 
 
-# ---------------------------------------------------------------------------
-# Icons
-# ---------------------------------------------------------------------------
+# ── companies ──────────────────────────────────────────────────────────────────
 
+@router.get("/companies", response_model=list[CompanyOut])
+def list_companies(project: str = Query(...)):
+    return [c.to_dict() for c in _require(project).list_companies()]
+
+
+@router.post("/companies", response_model=CompanyOut, status_code=201)
+def create_company(body: CompanyIn, project: str = Query(...)):
+    return _require(project).add_company(_company_in_to_obj(body)).to_dict()
+
+
+@router.get("/companies/{company_id}", response_model=CompanyOut)
+def get_company(company_id: int, project: str = Query(...)):
+    c = _require(project).get_company(company_id)
+    if c is None:
+        raise HTTPException(status_code=404, detail="Company not found.")
+    return c.to_dict()
+
+
+@router.put("/companies/{company_id}", response_model=CompanyOut)
+def update_company(company_id: int, body: CompanyIn, project: str = Query(...)):
+    try:
+        return _require(project).update_company(
+            _company_in_to_obj(body, company_id)
+        ).to_dict()
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Company not found.")
+
+
+@router.delete("/companies/{company_id}", status_code=204)
+def delete_company(company_id: int, project: str = Query(...)):
+    try:
+        _require(project).delete_company(company_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Company not found.")
+
+
+# ── icons ──────────────────────────────────────────────────────────────────────
 
 @router.post("/icons", response_model=IconOut, status_code=201)
-async def upload_icon(
-    file: UploadFile = File(...),
-    project: str = Query(...),
-):
+async def upload_icon(file: UploadFile = File(...), project: str = Query(...)):
     storage = _require(project)
-    content_type = file.content_type or ""
-    if content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=415, detail=f"Unsupported type '{content_type}'.")
+    ct = file.content_type or ""
+    if ct not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=415, detail=f"Unsupported type '{ct}'.")
     data = await file.read()
     if len(data) > MAX_ICON_BYTES:
         raise HTTPException(status_code=413, detail="Icon exceeds 2 MB.")
-    ext = mimetypes.guess_extension(content_type) or ".png"
+    ext = mimetypes.guess_extension(ct) or ".png"
     if ext in (".jpe", ".jfif"):
         ext = ".jpg"
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -221,27 +294,26 @@ async def upload_icon(
 @router.get("/icons/{filename}")
 def serve_icon(filename: str, project: str = Query(...)):
     storage = _require(project)
-    icon_path = storage.icons_dir / filename
-    if not icon_path.exists():
+    p = storage.icons_dir / filename
+    if not p.exists():
         raise HTTPException(status_code=404, detail="Icon not found.")
     try:
-        icon_path.relative_to(storage.icons_dir)
+        p.relative_to(storage.icons_dir)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid filename.")
-    return FileResponse(icon_path)
+    return FileResponse(p)
 
 
 @router.get("/icons", response_model=list[IconOut])
 def list_icons(project: str = Query(...)):
-    storage = _require(project)
-    return [{"filename": n, "url": f"/api/v1/icons/{n}?project={project}"}
-            for n in storage.list_icons()]
+    s = _require(project)
+    return [
+        {"filename": n, "url": f"/api/v1/icons/{n}?project={project}"}
+        for n in s.list_icons()
+    ]
 
 
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
-
+# ── health ─────────────────────────────────────────────────────────────────────
 
 @router.get("/health")
 def health():

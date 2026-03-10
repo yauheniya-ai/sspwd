@@ -176,20 +176,20 @@ The master password is never stored anywhere. It is entered in the browser UI, u
 |---|---|---|---|---|
 | Local-only | ✅ | ❌ cloud sync | ❌ cloud sync | ✅ |
 | Open source | ✅ | ❌ | Bitwarden ✅ | ❌ |
+| Audit the encryption source code | ✅ | ❌ | Bitwarden ✅ | ❌ |
 | No account needed | ✅ | ❌ | ❌ | ✅ |
 | Project / workspace isolation | ✅ | ❌ | ❌ | ❌ |
 | Tags, categories, metadata | ✅ | ❌ | partial | ❌ |
 | Custom icons | ✅ | ❌ | ✅ | ❌ |
 | Browser autofill extension | ❌ | ✅ | ✅ | ✅ |
-| Audit the encryption code | ✅ | ❌ | Bitwarden ✅ | ❌ |
 
-**Browser managers** (Safari Keychain, Chrome Passwords) sync to Apple/Google servers by default. Even with strong client-side encryption, you are trusting a corporation's infrastructure, account security, and update pipeline. Their browser extension autofill is also a real attack surface — extensions request access to read and modify all pages, making a compromised extension a universal credential harvester. Copy-paste is more deliberate and phishing-resistant.
+**Browser managers** (Safari Keychain, Chrome Passwords) sync to Apple/Google servers by default. Even with strong client-side encryption, you are trusting a corporation's infrastructure, account security, and update pipeline. Their browser extension autofill is also a real attack surface — extensions request access to read and modify all pages, making a compromised extension a universal credential harvester. In comparison, the copy-paste method is more deliberate and phishing-resistant.
 
 **1Password / Bitwarden** are the closest conceptual relatives — master password, local encryption, structured entries. Bitwarden is open-source and self-hostable. Their advantage is cross-device sync and mobile apps; their disadvantage is mandatory account setup, cloud dependency (unless self-hosted), and no project isolation without a paid Teams plan.
 
 **macOS Keychain** is local and OS-integrated but has no organisational structure, no web UI, is macOS-only, and is difficult to export or script against.
 
-**sspwd's advantage** is zero setup, zero accounts, zero cloud, and the ability to keep personal, work, and client credentials in cleanly separated encrypted vaults — with a searchable, filterable UI accessible from any browser on localhost.
+**sspwd's advantage** is zero setup, zero accounts, zero cloud, and the ability to keep personal, work, and project credentials in cleanly separated encrypted vaults — with a searchable, filterable UI accessible from any browser on localhost.
 
 ## License
 

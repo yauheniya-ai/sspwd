@@ -1,5 +1,18 @@
 # Changelog
 
+## Version 0.2.1 (2026-03-10)
+
+- **Username and email split into separate fields** — entries now store `username` (login handle) and `email` independently; both optional and both shown in the detail panel with copy buttons
+- **Company / owner info redesigned** — owner icon uses the same four-tab picker as entry icons (letter / iconify / url / upload); headquarters stored as structured address (`street`, `city`, `state`, `postcode`, `country`, `countryCode`) instead of a flat string; revenue stored as a raw USD number (`REAL` in SQLite) and formatted as `$307.4B` / `$729M` in the UI
+- **Detail panel shows all fields at all times** — every section (Credentials, Classification, Owner, Dates) is always rendered; empty fields display a dimmed `—` so the layout is consistent across all entries
+- **Country flag and address toggle in detail panel** — headquarters shows the country name with an inline `circle-flags` icon; full street address is hidden behind a "full address ↓" toggle to save space
+- **Login methods field** — 12 common methods (Email / Password, Google, GitHub, Apple, SSO, API Key, …) selectable as chips, plus free-text input for custom methods; stored as a JSON array
+- **"Used since" date** — optional user-supplied date for when they started using a service, stored separately from the vault record's `created_at`; shown in the Dates section with a ★ icon
+- **Only title is required** — all other entry fields (username, email, password, URL, category, tags, notes, login methods, owner, used since) are optional
+- **Backend schema extended** — new `entries` columns: `email` (encrypted), `category`, `tags` (JSON), `login_methods` (JSON), `user_created_at`; `companies` columns: `icon` (JSON), `address` (JSON), `revenue` (REAL); automatic migration via `ALTER TABLE ADD COLUMN` for existing vaults
+- **Header cleaned up** — removed duplicate unlock icon and "live" badge shown outside the dropdown; removed folder icon from the "+ new" option
+- **`examine_vault.py` rewritten** — updated to Argon2id + AES-256-GCM crypto; displays all new columns; `--companies` flag shows owner table with formatted revenue and structured address; `--project <name>` shortcut resolves `~/.sspwd/<name>/vault.db`; `--list` shows all projects with entry counts
+
 ## Version 0.2.0 (2026-03-09)
 
 ### Breaking change — vault format incompatible with v0.1.x
