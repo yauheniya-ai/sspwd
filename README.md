@@ -97,7 +97,7 @@ sspwd projects
 flowchart TD
     A([sspwd serve]) --> B[FastAPI server starts ➜ opens UI]
 
-    B --> D{Selects<br>a project}
+    B --> D{Select<br>a project}
 
     D -->|New project| E[Enter name + set master password]
     D -->|Existing project| F[Enter master password]
