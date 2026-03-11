@@ -2,11 +2,33 @@
 
 import time
 from pathlib import Path
+from typing import Generator
 
 import pytest
 import httpx
 
 from sspwd.ui.server import UIServer
+
+
+# ---------------------------------------------------------------------------
+# Fixture: creates UIServer instances and guarantees stop() on teardown
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def make_server() -> Generator:
+    """Factory fixture that stops every created server after the test."""
+    created: list[UIServer] = []
+
+    def factory(**kwargs) -> UIServer:
+        srv = UIServer(**kwargs)
+        created.append(srv)
+        return srv
+
+    yield factory
+
+    for srv in created:
+        srv.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -55,9 +77,9 @@ class TestBuildApp:
 
 
 class TestStart:
-    def test_start_non_blocking_serves_health(self) -> None:
+    def test_start_non_blocking_serves_health(self, make_server) -> None:
         port = 17523
-        server = UIServer(host="127.0.0.1", port=port, open_browser=False)
+        server = make_server(host="127.0.0.1", port=port, open_browser=False)
         server.start(block=False)
 
         deadline = time.time() + 5.0
@@ -73,20 +95,20 @@ class TestStart:
                 time.sleep(0.15)
         raise last_exc
 
-    def test_start_non_blocking_does_not_block_caller(self) -> None:
+    def test_start_non_blocking_does_not_block_caller(self, make_server) -> None:
         port = 17524
-        server = UIServer(host="127.0.0.1", port=port, open_browser=False)
+        server = make_server(host="127.0.0.1", port=port, open_browser=False)
         t0 = time.time()
         server.start(block=False)
         elapsed = time.time() - t0
         assert elapsed < 3.0, f"start(block=False) took {elapsed:.1f}s"
 
-    def test_open_browser_false_does_not_call_webbrowser(self, monkeypatch) -> None:
+    def test_open_browser_false_does_not_call_webbrowser(self, make_server, monkeypatch) -> None:
         port = 17525
         called = []
         monkeypatch.setattr("webbrowser.open", lambda url: called.append(url))
 
-        server = UIServer(host="127.0.0.1", port=port, open_browser=False)
+        server = make_server(host="127.0.0.1", port=port, open_browser=False)
         server.start(block=False)
         time.sleep(0.5)
 

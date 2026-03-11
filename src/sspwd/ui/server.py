@@ -58,23 +58,33 @@ class UIServer:
         url = f"http://{self._host}:{self._port}"
 
         config = uvicorn.Config(self._app, host=self._host, port=self._port, log_level="warning")
-        server = uvicorn.Server(config)
+        self._server = uvicorn.Server(config)
 
         if self._open_browser:
-            original_startup = server.startup
+            original_startup = self._server.startup
 
             async def _startup_and_open(sockets=None):
                 await original_startup(sockets=sockets)
                 threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
 
-            server.startup = _startup_and_open  # type: ignore[method-assign]
+            self._server.startup = _startup_and_open  # type: ignore[method-assign]
 
         print(f"sspwd UI → {url}  (Ctrl+C to quit)")
 
         if block:
-            server.run()
+            self._server.run()
         else:
-            threading.Thread(target=server.run, daemon=True).start()
+            self._thread = threading.Thread(target=self._server.run, daemon=True)
+            self._thread.start()
+
+    def stop(self, timeout: float = 5.0) -> None:
+        """Signal the uvicorn server to shut down and wait for its thread."""
+        server = getattr(self, "_server", None)
+        if server is not None:
+            server.should_exit = True
+        thread = getattr(self, "_thread", None)
+        if thread is not None:
+            thread.join(timeout=timeout)
 
     @property
     def app(self) -> FastAPI:
