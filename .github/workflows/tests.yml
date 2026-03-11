@@ -20,11 +20,7 @@ jobs:
       - name: Extract coverage percentage
         id: coverage
         run: |
-          COVERAGE=$(python -c "
-import xml.etree.ElementTree as ET
-root = ET.parse('coverage.xml').getroot()
-print(round(float(root.attrib['line-rate']) * 100))
-")
+          COVERAGE=$(python -c "import xml.etree.ElementTree as ET; root = ET.parse('coverage.xml').getroot(); print(round(float(root.attrib['line-rate']) * 100))")
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "Coverage: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
 
