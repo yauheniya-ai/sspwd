@@ -25,7 +25,7 @@ jobs:
           echo "Coverage: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
 
       - name: Update coverage badge
-        uses: schneegans/dynamic-badges-action@v1.4.0
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_TOKEN }}
           gistID: 54efe8e9445e06c13617aa69bae44b21
@@ -35,4 +35,3 @@ jobs:
           valColorRange: ${{ steps.coverage.outputs.coverage }}
           minColorRange: 0
           maxColorRange: 100
-          colorRange: red, red, orange, yellow, brightgreen

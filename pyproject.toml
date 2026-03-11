@@ -94,6 +94,11 @@ include-package-data = true
 [tool.pytest.ini_options]
 testpaths  = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    # Suppress deprecation warnings from third-party packages (websockets/uvicorn)
+    "ignore::DeprecationWarning:websockets",
+    "ignore::DeprecationWarning:uvicorn",
+]
 
 [tool.coverage.run]
 source = ["sspwd"]
