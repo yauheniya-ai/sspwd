@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.2.2 (2026-03-12)
+
+- **Email / username display unified in cards** — `PasswordCard` now shows whichever identifier is present, preferring email over username; the row is hidden when both are empty; icon switches to `mdi:email-outline` when displaying an email
+- **Search includes email field** — the sidebar search now matches against both `username` and `email`; guards added for optional fields to prevent `undefined.toLowerCase()` crashes
+- **"Using since" sort option** — sidebar sort dropdown gains a "Using since" option that orders entries by `userCreatedAt`; entries without the field sort to the end
+- **Login method filter** — sidebar now includes a "Login method" filter section with `TagBadge` pills for every method present in the vault (AND logic — entry must support all selected methods); integrated with "Clear all filters"
+- **Mock data completed** — `userCreatedAt` added to all 32 mock entries; `MOCK_COMPANIES` entries 28–31 reformatted to match the rest of the file (unquoted keys, single-line addresses, `state` field added where missing)
+
 ## Version 0.2.1 (2026-03-10)
 
 - **Username and email split into separate fields** — entries now store `username` (login handle) and `email` independently; both optional and both shown in the detail panel with copy buttons
