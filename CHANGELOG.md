@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 0.2.4 (2026-03-12)
+Fixes data loss where entry icons, service type, and all owner/company details silently disappeared after restarting the server. Rebuilds the frontend bundle directly into the package static directory.
+
+- **Entry icon persisted** — `icon` was never stored in the database; added `icon TEXT` column to the `entries` table (JSON `{type, value}`) in the schema, migration, `PasswordEntry` dataclass, `EntryIn` API schema, and both `add` / `update` SQL calls; `icon` is now included in the API request body on create and edit
+- **Service type persisted** — `service_type` (`"free"` / `"paid"`) was never stored; same fix applied — `service_type TEXT DEFAULT 'free'` added to the schema and migration; propagated through `PasswordEntry`, `EntryIn`, and all read/write paths
+- **Company / owner details persisted** — saving an entry with a new company name only sent `company_id: null`; the company object itself was never POSTed to the API; `handleSave` now upserts the company first (`POST /api/v1/companies` for new, `PUT /api/v1/companies/{id}` for existing) and passes the returned ID into the entry body
+- **Companies loaded from vault on unlock** — `companies` state was initialised from hard-coded mock data and never refreshed from the API; `loadProject` now fetches `GET /api/v1/entries` and `GET /api/v1/companies` in parallel, builds a `Map<id, Company>`, and embeds the full company object into each entry so owner details appear immediately after reopening the vault
+- **Build output points to package static directory** — `vite.config.ts` lacked an `outDir`; running `npm run build` was writing to `frontend/dist/` (not served by the Python server) instead of `pypi/src/sspwd/ui/static/`; added `build.outDir` and `build.emptyOutDir` so every build replaces the bundled frontend that `sspwd serve` actually serves
+
 ## Version 0.2.3 (2026-03-12)
 Adds master password rotation with crash-safe re-encryption, a new CLI command, and a standalone helper script.
 - **`sspwd change-password --project NAME`** — new CLI command; prompts for the current password (verified before proceeding), then prompts for the new password with confirmation; guards against empty and identical passwords

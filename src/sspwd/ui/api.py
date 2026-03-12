@@ -70,7 +70,9 @@ class EntryIn(BaseModel):
     password:       Optional[str]       = None
     url:            Optional[str]       = None
     notes:          Optional[str]       = None
+    icon:           Optional[dict]      = None          # {type, value}
     category:       str                 = "Other"
+    service_type:   str                 = "free"        # "free" | "paid"
     tags:           list[str]           = []
     login_methods:  list[str]           = []
     company_id:     Optional[int]       = None
@@ -118,7 +120,9 @@ def _entry_in_to_obj(body: EntryIn) -> PasswordEntry:
         password        = body.password,
         url             = body.url,
         notes           = body.notes,
+        icon            = body.icon,
         category        = body.category or "Other",
+        service_type    = body.service_type or "free",
         tags            = body.tags or [],
         login_methods   = body.login_methods or [],
         company_id      = body.company_id,

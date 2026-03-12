@@ -83,7 +83,9 @@ class PasswordEntry:
     password:        Optional[str]  = None   # stored encrypted, returned decrypted
     url:             Optional[str]  = None
     notes:           Optional[str]  = None
+    icon:            Optional[dict] = None   # {type, value} — matches frontend IconSource
     category:        str            = "Other"
+    service_type:    str            = "free"  # "free" | "paid"
     tags:            list[str]      = field(default_factory=list)
     login_methods:   list[str]      = field(default_factory=list)
     company_id:      Optional[int]  = None
@@ -100,7 +102,9 @@ class PasswordEntry:
             "password":        self.password,
             "url":             self.url,
             "notes":           self.notes,
+            "icon":            self.icon,
             "category":        self.category,
+            "service_type":    self.service_type,
             "tags":            self.tags,
             "login_methods":   self.login_methods,
             "company_id":      self.company_id,

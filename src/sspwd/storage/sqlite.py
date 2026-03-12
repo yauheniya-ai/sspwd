@@ -2,9 +2,9 @@
 SQLite storage backend — Argon2id + AES-256-GCM.
 
 entries table columns:
-    id, title, username*, email*, password*, url, notes*, category,
-    tags (JSON), login_methods (JSON), company_id, user_created_at,
-    created_at, updated_at
+    id, title, username*, email*, password*, url, notes*, icon (JSON),
+    category, service_type, tags (JSON), login_methods (JSON),
+    company_id, user_created_at, created_at, updated_at
     (* encrypted with AES-256-GCM)
 
 companies table columns:
@@ -147,6 +147,8 @@ class SQLiteStorage(BaseStorage):
             ("login_methods",   "TEXT DEFAULT '[]'"),
             ("company_id",      "INTEGER"),
             ("user_created_at", "TEXT"),
+            ("icon",            "TEXT"),
+            ("service_type",    "TEXT DEFAULT 'free'"),
         ]
         for col, defn in entry_new_cols:
             if col not in entry_existing:
@@ -183,7 +185,9 @@ class SQLiteStorage(BaseStorage):
                     password        TEXT,   -- AES-encrypted
                     url             TEXT,
                     notes           TEXT,   -- AES-encrypted
+                    icon            TEXT,           -- JSON {type, value}
                     category        TEXT    NOT NULL DEFAULT 'Other',
+                    service_type    TEXT    NOT NULL DEFAULT 'free',
                     tags            TEXT    NOT NULL DEFAULT '[]',  -- JSON array
                     login_methods   TEXT    NOT NULL DEFAULT '[]',  -- JSON array
                     company_id      INTEGER REFERENCES companies(id) ON DELETE SET NULL,
@@ -285,7 +289,9 @@ class SQLiteStorage(BaseStorage):
             password        = self._dec_opt(row["password"]),
             url             = row["url"],
             notes           = self._dec_opt(row["notes"]),
+            icon            = json.loads(row["icon"]) if row["icon"] else None,
             category        = row["category"] or "Other",
+            service_type    = row["service_type"] or "free",
             tags            = json.loads(row["tags"]) if row["tags"] else [],
             login_methods   = json.loads(row["login_methods"]) if row["login_methods"] else [],
             company_id      = row["company_id"],
@@ -299,9 +305,10 @@ class SQLiteStorage(BaseStorage):
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO entries
-                   (title, username, email, password, url, notes, category, tags,
-                    login_methods, company_id, user_created_at, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   (title, username, email, password, url, notes, icon, category,
+                    service_type, tags, login_methods, company_id, user_created_at,
+                    created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     entry.title,
                     entry.username,
@@ -309,7 +316,9 @@ class SQLiteStorage(BaseStorage):
                     self._enc_opt(entry.password),
                     entry.url,
                     self._enc_opt(entry.notes),
+                    json.dumps(entry.icon) if entry.icon else None,
                     entry.category or "Other",
+                    entry.service_type or "free",
                     json.dumps(entry.tags),
                     json.dumps(entry.login_methods),
                     entry.company_id,
@@ -351,8 +360,8 @@ class SQLiteStorage(BaseStorage):
             rc = conn.execute(
                 """UPDATE entries
                    SET title=?, username=?, email=?, password=?, url=?, notes=?,
-                       category=?, tags=?, login_methods=?, company_id=?,
-                       user_created_at=?, updated_at=?
+                       icon=?, category=?, service_type=?, tags=?, login_methods=?,
+                       company_id=?, user_created_at=?, updated_at=?
                    WHERE id=?""",
                 (
                     entry.title,
@@ -361,7 +370,9 @@ class SQLiteStorage(BaseStorage):
                     self._enc_opt(entry.password),
                     entry.url,
                     self._enc_opt(entry.notes),
+                    json.dumps(entry.icon) if entry.icon else None,
                     entry.category or "Other",
+                    entry.service_type or "free",
                     json.dumps(entry.tags),
                     json.dumps(entry.login_methods),
                     entry.company_id,
