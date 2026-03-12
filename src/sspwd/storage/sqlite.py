@@ -204,6 +204,78 @@ class SQLiteStorage(BaseStorage):
         """Decrypt if not None, else return None."""
         return self._decrypt(v) if v is not None else None
 
+    # ── re-encryption (master password change) ────────────────────────────────
+
+    def reencrypt(self, new_master_password: str) -> None:
+        """Re-encrypt the entire vault under a new master password.
+
+        Crash-safety guarantee
+        ----------------------
+        1. All plaintext is kept in memory only; the DB itself is never in a
+           half-encrypted state — the new ciphertext is committed atomically
+           in a single SQLite transaction.
+        2. The new Argon2id salt is staged to ``salt.bin.tmp`` *before* the
+           transaction commits, then promoted with an atomic ``os.rename``
+           *after* it succeeds.
+        3. If the process dies between the transaction commit and the rename,
+           ``salt.bin.tmp`` is present on disk.  The next successful call to
+           ``reencrypt`` (or a manual rename) restores the vault.
+        """
+        cols = sorted(_ENCRYPTED_ENTRY_COLS)   # deterministic column order
+
+        # ── 1. Read + decrypt every encrypted column with the current key ──
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT id, {', '.join(cols)} FROM entries"
+            ).fetchall()
+
+        plaintext_rows: list[tuple[int, dict[str, Optional[str]]]] = [
+            (
+                row["id"],
+                {col: (self._decrypt(row[col]) if row[col] is not None else None)
+                 for col in cols},
+            )
+            for row in rows
+        ]
+
+        # ── 2. Derive a new key from a fresh random salt ──────────────────
+        new_salt = os.urandom(32)
+        new_key  = _derive_key(new_master_password, new_salt)
+        new_gcm  = AESGCM(new_key)
+
+        def _enc_new(v: Optional[str]) -> Optional[str]:
+            if v is None:
+                return None
+            nonce = os.urandom(_NONCE_LEN)
+            ct    = new_gcm.encrypt(nonce, v.encode(), None)
+            return base64.urlsafe_b64encode(nonce + ct).decode()
+
+        # ── 3. Stage the new salt (written before the DB changes commit) ──
+        tmp_salt = self._salt_path.with_name("salt.bin.tmp")
+        tmp_salt.write_bytes(new_salt)
+
+        # ── 4. Re-encrypt and commit in one transaction ───────────────────
+        set_clause = ", ".join(f"{col} = ?" for col in cols)
+        with self._connect() as conn:
+            for entry_id, values in plaintext_rows:
+                params = [_enc_new(values[col]) for col in cols] + [entry_id]
+                conn.execute(
+                    f"UPDATE entries SET {set_clause} WHERE id = ?", params
+                )
+            conn.commit()
+
+        # ── 5. Atomically promote the new salt (POSIX rename is atomic) ───
+        tmp_salt.replace(self._salt_path)
+
+        # ── 6. Rewrite the sentinel with the new key ──────────────────────
+        nonce = os.urandom(_NONCE_LEN)
+        self._sentinel_path.write_bytes(
+            nonce + new_gcm.encrypt(nonce, _SENTINEL_PLAINTEXT, None)
+        )
+
+        # ── 7. Update this instance to use the new key ────────────────────
+        self._aesgcm = new_gcm
+
     def _row_to_entry(self, row: sqlite3.Row) -> PasswordEntry:
         return PasswordEntry(
             id              = row["id"],

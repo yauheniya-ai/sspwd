@@ -87,6 +87,9 @@ sspwd delete 3 --project work
 
 # List all existing projects
 sspwd projects
+
+# Change master password
+sspwd change-password --project demo
 ```
 
 > All CLI commands that access a vault will prompt for the master password.

@@ -1,12 +1,87 @@
 # Changelog
 
-## Version 0.2.2 (2026-03-12)
+## Version 0.2.3 (2026-03-12)
+Adds master password rotation with crash-safe re-encryption, a new CLI command, and a standalone helper script.
+- **`sspwd change-password --project NAME`** — new CLI command; prompts for the current password (verified before proceeding), then prompts for the new password with confirmation; guards against empty and identical passwords
+- **`SQLiteStorage.reencrypt(new_master)`** — re-encrypts all sensitive columns (`password`, `email`, `notes`) in a single atomic SQLite transaction; new Argon2id salt is staged to `salt.bin.tmp` before the commit and promoted with a POSIX atomic rename afterwards, so a mid-process crash leaves the vault consistent
+- **`scripts/change_master_password.py`** — standalone script usable without installing the package; accepts the project name as a positional argument (defaults to `default`); validates vault existence, current password, new-password confirmation, and no-op case before re-encrypting
+- **5 new tests in `TestReencrypt`** — cover data preservation, new password acceptance, old password rejection, multiple entries, and `None` encrypted fields
 
+## Version 0.2.2 (2026-03-12)
+Improves the card display logic, broadens search coverage, adds sorting and filtering options, and cleans up mock data.
 - **Email / username display unified in cards** — `PasswordCard` now shows whichever identifier is present, preferring email over username; the row is hidden when both are empty; icon switches to `mdi:email-outline` when displaying an email
 - **Search includes email field** — the sidebar search now matches against both `username` and `email`; guards added for optional fields to prevent `undefined.toLowerCase()` crashes
 - **"Using since" sort option** — sidebar sort dropdown gains a "Using since" option that orders entries by `userCreatedAt`; entries without the field sort to the end
-- **Login method filter** — sidebar now includes a "Login method" filter section with `TagBadge` pills for every method present in the vault (AND logic — entry must support all selected methods); integrated with "Clear all filters"
+- **Login method filter** — sidebar now includes a "Login method" filter section with `TagBadge` pills for every method present in the vault (OR logic — entry must support any of the selected methods); integrated with "Clear all filters"
+- **HQ country filter** — sidebar gains a "HQ country" filter section derived from `company.address.country`; selecting multiple countries widens the results (OR logic)
 - **Mock data completed** — `userCreatedAt` added to all 32 mock entries; `MOCK_COMPANIES` entries 28–31 reformatted to match the rest of the file (unquoted keys, single-line addresses, `state` field added where missing)
+
+## Version 0.2.1 (2026-03-10)
+Extends the entry model with split username/email and structured company data, and polishes the detail panel layout.
+- **Username and email split into separate fields** — entries now store `username` (login handle) and `email` independently; both optional and both shown in the detail panel with copy buttons
+- **Company / owner info redesigned** — owner icon uses the same four-tab picker as entry icons (letter / iconify / url / upload); headquarters stored as structured address (`street`, `city`, `state`, `postcode`, `country`, `countryCode`) instead of a flat string; revenue stored as a raw USD number (`REAL` in SQLite) and formatted as `$307.4B` / `$729M` in the UI
+- **Detail panel shows all fields at all times** — every section (Credentials, Classification, Owner, Dates) is always rendered; empty fields display a dimmed `—` so the layout is consistent across all entries
+- **Country flag and address toggle in detail panel** — headquarters shows the country name with an inline `circle-flags` icon; full street address is hidden behind a "full address ↓" toggle to save space
+- **Login methods field** — 12 common methods (Email / Password, Google, GitHub, Apple, SSO, API Key, …) selectable as chips, plus free-text input for custom methods; stored as a JSON array
+- **"Used since" date** — optional user-supplied date for when they started using a service, stored separately from the vault record's `created_at`; shown in the Dates section with a ★ icon
+- **Only title is required** — all other entry fields (username, email, password, URL, category, tags, notes, login methods, owner, used since) are optional
+- **Backend schema extended** — new `entries` columns: `email` (encrypted), `category`, `tags` (JSON), `login_methods` (JSON), `user_created_at`; `companies` columns: `icon` (JSON), `address` (JSON), `revenue` (REAL); automatic migration via `ALTER TABLE ADD COLUMN` for existing vaults
+- **Header cleaned up** — removed duplicate unlock icon and "live" badge shown outside the dropdown; removed folder icon from the "+ new" option
+- **`examine_vault.py` rewritten** — updated to Argon2id + AES-256-GCM crypto; displays all new columns; `--companies` flag shows owner table with formatted revenue and structured address; `--project <name>` shortcut resolves `~/.sspwd/<name>/vault.db`; `--list` shows all projects with entry counts
+
+## Version 0.2.0 (2026-03-09)
+Replaces PBKDF2 + Fernet with Argon2id + AES-256-GCM — a breaking vault format change with significantly stronger security.
+
+### Breaking change — vault format incompatible with v0.1.x
+Existing vaults encrypted under v0.1.x cannot be read by v0.2.0. Use the `examine_vault.py` utility to export your entries before upgrading, then re-import them into a new vault.
+
+- **KDF changed from PBKDF2-HMAC-SHA256 (390k iterations) to Argon2id** — parameters: `time_cost=3`, `memory_cost=64 MiB`, `parallelism=2`; memory-hard against GPU/ASIC cracking; meets and exceeds OWASP 2024 minimums; new dependency: `argon2-cffi>=23.1`
+- **Cipher changed from Fernet (AES-128-CBC + HMAC-SHA256) to AES-256-GCM** — 256-bit key; built-in AEAD authentication; 12-byte random nonce per encryption call; wire format: `base64(nonce[12] || ciphertext+tag)`; faster on CPUs with AES-NI
+- **`verify.bin` sentinel added** — contains `"sspwd-ok"` encrypted with the vault key; decrypted on every `SQLiteStorage.__init__()`; wrong password raises `InvalidTag` immediately before any entry data is touched
+- Added: `argon2-cffi>=23.1`; `cryptography>=42.0` retained (now used for `AESGCM` instead of `Fernet`)
+
+## Version 0.1.2 (2026-03-09)
+Introduces multi-project vault support, password-free server startup, and on-demand project unlocking via the browser.
+- **Multi-project vaults** — layout changed from `~/.sspwd/vault.db` to `~/.sspwd/{project}/vault.db`; new `--project` / `-p` flag on all CLI commands; new `sspwd projects` command; default project name is `default`; icons stored per-project at `~/.sspwd/{project}/icons/`
+- **Password-free server startup** — `sspwd serve` no longer prompts at startup; server starts in mock/demo mode; projects unlocked on demand via `POST /api/v1/projects/{name}/unlock`; multiple projects can be unlocked and switched within a single session
+- **New API endpoints** — `GET /api/v1/projects`, `GET /api/v1/projects/unlocked`, `POST /api/v1/projects/{name}/unlock`, `POST /api/v1/projects`, `DELETE /api/v1/projects/{name}/lock`; all entry and icon endpoints now require `?project=`
+- **Entry persistence fixed** — add, edit, and delete now call the backend API and persist to `vault.db`; mock mode continues to work in local state only
+- **Icon upload fixed** — correctly passes `?project=` to `POST /api/v1/icons`; icons saved to `~/.sspwd/{project}/icons/` and survive server restarts
+- **Frontend — project selector redesign** — native `<select>` replaced with a custom dropdown rendering Iconify icons per option; locked/unlocked/active states with distinct icons and a `live` badge
+- **Frontend — unlock modal improvements** — modal title shows only the project name; password label changed to `ENTER MASTER PASSWORD TO UNLOCK`; unlock button shows `si:unlock-fill` icon
+- **Service type simplified** — `ServiceType` reduced from four values to two (`free`, `paid`); all mock entries updated
+- **Bug fixes** — `from __future__ import annotations` added to `sqlite.py` to fix Python 3.10 crash; empty vault shows "Add first entry" button; empty state message distinguishes no entries from no filter matches; `serviceType` API mapping corrected
+
+## Version 0.1.1 (2026-03-08)
+Fixes browser password manager interference, improves sidebar navigation, and repairs the `--no-browser` startup flag.
+- Fixed search input triggering browser password manager / fingerprint prompt by switching to `type="search"` with `autocomplete="off"`, `data-form-type="other"`, and `data-lpignore="true"`
+- Added solid Iconify icons per category in the sidebar (`mdi:school`, `mdi:bank`, `mdi:server`, etc.) with a `CATEGORY_ICONS` map for easy extension
+- Fixed `--no-browser` flag — browser no longer opens when the flag is passed; rewired launch to uvicorn's startup event to eliminate the race condition
+- Vault selector dropdown in the header now fetches live data from `GET /api/v1/entries` when `vault.db` is selected, with loading state and error message if the server is unreachable
+- Moved "Add entry" button from the header into the main content summary bar, inline with the entry/category count
+
+## Version 0.1.0 (2026-03-08)
+Initial release — full-stack local password manager with encrypted SQLite storage, a FastAPI backend, and a React/Vite frontend.
+- Initialized PyPI package `sspwd` with `setuptools` build backend and `pyproject.toml`
+- Implemented `PasswordEntry` dataclass and `BaseStorage` abstract interface
+- Built SQLite storage backend with PBKDF2-SHA256 key derivation (390k iterations) and Fernet AES encryption; sensitive fields (`password`, `notes`) encrypted at rest
+- Created FastAPI REST API (`/api/v1`) with full CRUD: list, create, get, update, delete, and search
+- Added `UIServer` class serving the React SPA as static files with a catch-all SPA fallback route
+- Built `Click` CLI with commands: `serve`, `add`, `list`, `get`, `delete`, `version`
+- Wrote `examine_vault.py` utility script to inspect raw or decrypted vault contents from the terminal
+- Added pytest test suite covering storage and API endpoints
+- Initialized React + Vite + TypeScript + Tailwind CSS v4 frontend
+- Designed 3-column layout: `Sidebar` / `MainContent` / `DetailPanel` with blue-700 → red-700 gradient `Header`
+- Built `Sidebar` with live search, tag filter pills, service-type filter, sort controls, and category tree with entry counts
+- Implemented `MainContent` grouping entries by category with a responsive card grid
+- Created `PasswordCard` with masked password toggle, one-click copy, tag badges, and service-type indicator
+- Built `DetailPanel` showing full entry details, copy fields, edit and delete actions
+- Added `AddEditModal` form with icon picker (Iconify / URL / letter fallback), strong password generator, tag autocomplete, and category autocomplete
+- Created `EntryIcon` component supporting Iconify icons, external image URLs, and letter fallback
+- Defined shared TypeScript types (`PasswordEntry`, `FilterState`, `IconSource`, `ServiceType`)
+- Populated 15 realistic mock entries across 8 categories
+- Wired all state management in `App.tsx` with filter, selection, add/edit/delete, and modal lifecycle
+
 
 ## Version 0.2.1 (2026-03-10)
 

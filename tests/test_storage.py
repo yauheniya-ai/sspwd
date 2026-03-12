@@ -533,3 +533,60 @@ class TestEncryption:
                     "notes", "category", "tags", "login_methods",
                     "created_at", "updated_at"):
             assert key in d
+
+
+class TestReencrypt:
+    """Tests for SQLiteStorage.reencrypt() — master password change."""
+
+    def test_data_survives_reencrypt(self, tmp_path: Path) -> None:
+        """All plaintext values are preserved after re-encryption."""
+        s = SQLiteStorage(master_password="old-pass", vault_dir=tmp_path)
+        e = s.add(_entry(password="s3cr3t", email="x@x.com", notes="my note"))
+        s.reencrypt("new-pass")
+        fetched = s.get(e.id)
+        assert fetched.password == "s3cr3t"
+        assert fetched.email    == "x@x.com"
+        assert fetched.notes    == "my note"
+
+    def test_new_master_opens_vault(self, tmp_path: Path) -> None:
+        """A fresh SQLiteStorage instance opened with the new password works."""
+        s = SQLiteStorage(master_password="old-pass", vault_dir=tmp_path)
+        e = s.add(_entry(password="hunter2"))
+        s.reencrypt("new-pass")
+
+        s2 = SQLiteStorage(master_password="new-pass", vault_dir=tmp_path)
+        assert s2.get(e.id).password == "hunter2"
+
+    def test_old_master_rejected_after_reencrypt(self, tmp_path: Path) -> None:
+        """Opening the vault with the old password raises after re-encryption."""
+        s = SQLiteStorage(master_password="old-pass", vault_dir=tmp_path)
+        s.add(_entry())
+        s.reencrypt("new-pass")
+
+        with pytest.raises(Exception):
+            SQLiteStorage(master_password="old-pass", vault_dir=tmp_path)
+
+    def test_reencrypt_multiple_entries(self, tmp_path: Path) -> None:
+        """Re-encryption works correctly for multiple entries."""
+        s = SQLiteStorage(master_password="pwd", vault_dir=tmp_path)
+        entries = [
+            s.add(_entry(title=f"Entry {i}", password=f"pass{i}", email=f"u{i}@x.com"))
+            for i in range(5)
+        ]
+        s.reencrypt("new-pwd")
+        s2 = SQLiteStorage(master_password="new-pwd", vault_dir=tmp_path)
+        for i, e in enumerate(entries):
+            fetched = s2.get(e.id)
+            assert fetched.password == f"pass{i}"
+            assert fetched.email    == f"u{i}@x.com"
+
+    def test_reencrypt_handles_null_encrypted_fields(self, tmp_path: Path) -> None:
+        """Entries with None email/notes/password are preserved as None."""
+        s = SQLiteStorage(master_password="pwd", vault_dir=tmp_path)
+        e = s.add(_entry(password=None, email=None, notes=None))
+        s.reencrypt("new-pwd")
+        s2 = SQLiteStorage(master_password="new-pwd", vault_dir=tmp_path)
+        fetched = s2.get(e.id)
+        assert fetched.password is None
+        assert fetched.email    is None
+        assert fetched.notes    is None

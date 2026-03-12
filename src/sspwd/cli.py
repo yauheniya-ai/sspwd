@@ -3,13 +3,14 @@ CLI for sspwd.
 
 Commands
 --------
-    sspwd serve   [--project NAME]   Start the web UI
-    sspwd add     [--project NAME]   Add entry interactively
-    sspwd list    [--project NAME]   List entries
-    sspwd get     [--project NAME]   Show one entry
-    sspwd delete  [--project NAME]   Delete an entry
-    sspwd version                    Print version
-    sspwd projects                   List existing projects
+    sspwd serve            [--project NAME]   Start the web UI
+    sspwd add              [--project NAME]   Add entry interactively
+    sspwd list             [--project NAME]   List entries
+    sspwd get              [--project NAME]   Show one entry
+    sspwd delete           [--project NAME]   Delete an entry
+    sspwd change-password  [--project NAME]   Re-encrypt vault with a new password
+    sspwd version                             Print version
+    sspwd projects                            List existing projects
 
 Projects are stored as separate vaults under ~/.sspwd/{project}/vault.db.
 The default project is named "default".
@@ -157,6 +158,46 @@ def delete_entry(project: str, entry_id: int, yes: bool, vault_dir: Optional[str
     except KeyError:
         click.echo(click.style(f"Entry {entry_id} not found.", fg="red"), err=True)
         sys.exit(1)
+
+
+@cli.command("change-password")
+@_project_option
+@click.option("--vault-dir", default=None, type=click.Path())
+def change_password(project: str, vault_dir: Optional[str]) -> None:
+    """Change the master password for a project vault (re-encrypts the vault)."""
+    click.echo(
+        click.style("⚠  This will re-encrypt the entire vault.", fg="yellow")
+    )
+
+    current = click.prompt("Current master password", hide_input=True)
+    try:
+        storage = _get_storage(current, project, Path(vault_dir) if vault_dir else None)
+    except Exception:
+        click.echo(click.style("✗ Wrong master password.", fg="red"), err=True)
+        sys.exit(1)
+
+    new_pw = click.prompt(
+        "New master password",
+        hide_input=True,
+        confirmation_prompt="Confirm new master password",
+    )
+    if not new_pw:
+        click.echo(click.style("✗ New password must not be empty.", fg="red"), err=True)
+        sys.exit(1)
+    if new_pw == current:
+        click.echo(
+            click.style("New password is identical to the current one. Nothing changed.", fg="yellow")
+        )
+        return
+
+    entry_count = len(storage.list())
+    click.echo(f"Re-encrypting {entry_count} {'entry' if entry_count == 1 else 'entries'}…")
+
+    storage.reencrypt(new_pw)
+
+    click.echo(
+        click.style(f"✓ Master password changed for project '{project}'.", fg="green")
+    )
 
 
 @cli.command("projects")
