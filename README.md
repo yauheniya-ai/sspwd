@@ -1,7 +1,7 @@
 # sspwd – super secret password
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://img.shields.io/pypi/v/sspwd?color=blue&label=PyPI)](https://pypi.org/project/sspwd/)
 [![Tests](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml/badge.svg)](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/yauheniya-ai/54efe8e9445e06c13617aa69bae44b21/raw/coverage.json)](https://github.com/yauheniya-ai/sspwd/actions/workflows/tests.yml)
@@ -180,6 +180,7 @@ The master password is never stored anywhere. It is entered in the browser UI, u
 | Tags, categories, metadata | ✅ | ❌ | partial | ❌ |
 | Custom icons | ✅ | ❌ | ✅ | ❌ |
 | Browser autofill extension | ❌ | ✅ | ✅ | ✅ |
+| Mobile / cross-device | planned | ✅ | ✅ | ✅ macOS/iOS |
 
 **Browser managers** (Safari Keychain, Chrome Passwords) sync to Apple/Google servers by default. Even with strong client-side encryption, you are trusting a corporation's infrastructure, account security, and update pipeline. Their browser extension autofill is also a real attack surface — extensions request access to read and modify all pages, making a compromised extension a universal credential harvester. In comparison, the copy-paste method is more deliberate and phishing-resistant.
 
