@@ -23,7 +23,7 @@ from typing import Optional
 from argon2.low_level import Type, hash_secret_raw
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from .base import BaseStorage, Company, CompanyAddress, PasswordEntry
+from .base import BaseStorage, Company, CompanyAddress, IconCatalogueEntry, PasswordEntry
 
 # ── constants ────────────────────────────────────────────────────────────────
 
@@ -196,6 +196,16 @@ class SQLiteStorage(BaseStorage):
                     updated_at      TEXT    NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS icon_catalogue (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type       TEXT    NOT NULL,   -- "letter" | "iconify" | "url"
+                    value      TEXT    NOT NULL,
+                    label      TEXT,
+                    created_at TEXT    NOT NULL,
+                    UNIQUE(type, value)
+                )
+            """)
             self._migrate(conn)
 
     # ── entries CRUD ──────────────────────────────────────────────────────────
@@ -329,6 +339,7 @@ class SQLiteStorage(BaseStorage):
             entry.id         = cur.lastrowid
             entry.created_at = datetime.fromisoformat(now)
             entry.updated_at = entry.created_at
+            self._maybe_catalogue_icon(conn, entry.icon)
         return entry
 
     def get(self, entry_id: int) -> Optional[PasswordEntry]:
@@ -380,8 +391,9 @@ class SQLiteStorage(BaseStorage):
                     now, entry.id,
                 ),
             ).rowcount
-        if rc == 0:
-            raise KeyError(f"No entry with id={entry.id}")
+            if rc == 0:
+                raise KeyError(f"No entry with id={entry.id}")
+            self._maybe_catalogue_icon(conn, entry.icon)
         entry.updated_at = datetime.fromisoformat(now)
         return entry
 
@@ -416,6 +428,7 @@ class SQLiteStorage(BaseStorage):
                 ),
             )
             company.id = cur.lastrowid
+            self._maybe_catalogue_icon(conn, company.icon)
         return company
 
     def get_company(self, company_id: int) -> Optional[Company]:
@@ -442,8 +455,9 @@ class SQLiteStorage(BaseStorage):
                     company.id,
                 ),
             ).rowcount
-        if rc == 0:
-            raise KeyError(f"No company with id={company.id}")
+            if rc == 0:
+                raise KeyError(f"No company with id={company.id}")
+            self._maybe_catalogue_icon(conn, company.icon)
         return company
 
     def delete_company(self, company_id: int) -> None:
@@ -451,6 +465,73 @@ class SQLiteStorage(BaseStorage):
             rc = conn.execute("DELETE FROM companies WHERE id=?", (company_id,)).rowcount
         if rc == 0:
             raise KeyError(f"No company with id={company_id}")
+
+    # ── icon catalogue ────────────────────────────────────────────────────────
+
+    def _maybe_catalogue_icon(self, conn: sqlite3.Connection, icon: Optional[dict]) -> None:
+        """Insert icon into icon_catalogue if not None; ignores duplicates."""
+        if not icon:
+            return
+        t = icon.get("type")
+        v = icon.get("value")
+        if not t or not v:
+            return
+        now = datetime.utcnow().isoformat()
+        conn.execute(
+            "INSERT OR IGNORE INTO icon_catalogue (type, value, created_at) VALUES (?,?,?)",
+            (t, v, now),
+        )
+
+    def _row_to_icon_catalogue(self, row: sqlite3.Row) -> IconCatalogueEntry:
+        return IconCatalogueEntry(
+            id         = row["id"],
+            type       = row["type"],
+            value      = row["value"],
+            label      = row["label"],
+            created_at = datetime.fromisoformat(row["created_at"]),
+        )
+
+    def add_to_icon_catalogue(
+        self, type_: str, value: str, label: Optional[str] = None
+    ) -> Optional[IconCatalogueEntry]:
+        """Explicitly add an icon to the catalogue. Returns the row (new or existing)."""
+        now = datetime.utcnow().isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO icon_catalogue (type, value, label, created_at) VALUES (?,?,?,?)",
+                (type_, value, label, now),
+            )
+            row = conn.execute(
+                "SELECT * FROM icon_catalogue WHERE type=? AND value=?", (type_, value)
+            ).fetchone()
+        return self._row_to_icon_catalogue(row) if row else None
+
+    def list_icon_catalogue(self) -> list[IconCatalogueEntry]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM icon_catalogue ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._row_to_icon_catalogue(r) for r in rows]
+
+    def update_icon_catalogue_label(self, entry_id: int, label: str) -> IconCatalogueEntry:
+        with self._connect() as conn:
+            rc = conn.execute(
+                "UPDATE icon_catalogue SET label=? WHERE id=?", (label, entry_id)
+            ).rowcount
+            if rc == 0:
+                raise KeyError(f"No icon_catalogue entry with id={entry_id}")
+            row = conn.execute(
+                "SELECT * FROM icon_catalogue WHERE id=?", (entry_id,)
+            ).fetchone()
+        return self._row_to_icon_catalogue(row)
+
+    def delete_from_icon_catalogue(self, entry_id: int) -> None:
+        with self._connect() as conn:
+            rc = conn.execute(
+                "DELETE FROM icon_catalogue WHERE id=?", (entry_id,)
+            ).rowcount
+        if rc == 0:
+            raise KeyError(f"No icon_catalogue entry with id={entry_id}")
 
     # ── icons ─────────────────────────────────────────────────────────────────
 

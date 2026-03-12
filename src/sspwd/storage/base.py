@@ -7,6 +7,29 @@ from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
+# Icon catalogue
+# ---------------------------------------------------------------------------
+
+@dataclass
+class IconCatalogueEntry:
+    """One catalogued icon — unique by (type, value)."""
+    id:         Optional[int]
+    type:       str               # "letter" | "iconify" | "url"
+    value:      str
+    label:      Optional[str]     = None
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "type":       self.type,
+            "value":      self.value,
+            "label":      self.label,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Company / Owner
 # ---------------------------------------------------------------------------
 
@@ -151,4 +174,22 @@ class BaseStorage(ABC):
         raise NotImplementedError
 
     def delete_company(self, company_id: int) -> None:
+        raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Icon catalogue
+    # ------------------------------------------------------------------
+
+    def add_to_icon_catalogue(
+        self, type_: str, value: str, label: Optional[str] = None
+    ) -> Optional["IconCatalogueEntry"]:
+        raise NotImplementedError
+
+    def list_icon_catalogue(self) -> list["IconCatalogueEntry"]:
+        raise NotImplementedError
+
+    def update_icon_catalogue_label(self, entry_id: int, label: str) -> "IconCatalogueEntry":
+        raise NotImplementedError
+
+    def delete_from_icon_catalogue(self, entry_id: int) -> None:
         raise NotImplementedError

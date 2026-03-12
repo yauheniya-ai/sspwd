@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.2.5 (2026-03-12)
+Adds an icon catalogue shared across entries and owners, a full owners manager view, and miscellaneous UX fixes.
+
+- **Icon catalogue** — new `icon_catalogue` table (columns: `id`, `type`, `value`, `label`, `created_at`); auto-populated with a unique constraint whenever an icon is saved to an entry or company; full CRUD API at `GET/POST/PATCH/DELETE /api/v1/icon-catalogue`; icons appear in a new **library** tab inside the icon picker so previously used icons can be reused without retyping; labels are editable inline; individual icons can be removed from the library
+- **Owners Manager modal** — "All owners" button in the AddEdit modal opens a full-table overlay listing every company with name, location, revenue, and entry-usage count; supports inline edit (all fields including icon and address), delete with confirmation, and adding a new owner directly from the table; changes persist to the backend immediately
+- **AddEdit modal no longer closes on Escape or backdrop click** — data entered is preserved until the user explicitly clicks Cancel or ✕
+- **`examine_vault.py` updated** — icon count shown in the metadata header; new `--icons` flag prints the icon catalogue as a compact table (ID, type, label, value)
+
 ## Version 0.2.4 (2026-03-12)
 Fixes data loss where entry icons, service type, and all owner/company details silently disappeared after restarting the server. Rebuilds the frontend bundle directly into the package static directory.
 

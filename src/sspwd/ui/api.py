@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
-from ..storage.base import Company, CompanyAddress, PasswordEntry
+from ..storage.base import Company, CompanyAddress, IconCatalogueEntry, PasswordEntry
 from ..storage.sqlite import SQLiteStorage, project_dir
 
 router = APIRouter(prefix="/api/v1")
@@ -98,6 +98,21 @@ class ProjectIn(BaseModel):
 class IconOut(BaseModel):
     filename: str
     url:      str
+
+
+class IconCatalogueIn(BaseModel):
+    type:  str
+    value: str
+    label: Optional[str] = None
+
+
+class IconCatalogueOut(BaseModel):
+    id:         int
+    type:       str
+    value:      str
+    label:      Optional[str] = None
+    created_at: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -292,7 +307,10 @@ async def upload_icon(file: UploadFile = File(...), project: str = Query(...)):
         ext = ".jpg"
     filename = f"{uuid.uuid4().hex}{ext}"
     storage.save_icon(filename, data)
-    return {"filename": filename, "url": f"/api/v1/icons/{filename}?project={project}"}
+    url = f"/api/v1/icons/{filename}?project={project}"
+    # auto-catalogue the uploaded icon as a "url" entry pointing to the api path
+    storage.add_to_icon_catalogue("url", url)
+    return {"filename": filename, "url": url}
 
 
 @router.get("/icons/{filename}")
@@ -315,6 +333,42 @@ def list_icons(project: str = Query(...)):
         {"filename": n, "url": f"/api/v1/icons/{n}?project={project}"}
         for n in s.list_icons()
     ]
+
+
+# ── icon catalogue ────────────────────────────────────────────────────────────
+
+@router.get("/icon-catalogue", response_model=list[IconCatalogueOut])
+def list_icon_catalogue(project: str = Query(...)):
+    return [e.to_dict() for e in _require(project).list_icon_catalogue()]
+
+
+@router.post("/icon-catalogue", response_model=IconCatalogueOut, status_code=201)
+def add_to_icon_catalogue(body: IconCatalogueIn, project: str = Query(...)):
+    entry = _require(project).add_to_icon_catalogue(body.type, body.value, body.label)
+    if entry is None:
+        raise HTTPException(status_code=500, detail="Failed to add icon to catalogue.")
+    return entry.to_dict()
+
+
+@router.patch("/icon-catalogue/{entry_id}", response_model=IconCatalogueOut)
+def update_icon_catalogue_label(
+    entry_id: int,
+    body: dict,
+    project: str = Query(...),
+):
+    label = body.get("label", "")
+    try:
+        return _require(project).update_icon_catalogue_label(entry_id, label).to_dict()
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Icon catalogue entry not found.")
+
+
+@router.delete("/icon-catalogue/{entry_id}", status_code=204)
+def delete_from_icon_catalogue(entry_id: int, project: str = Query(...)):
+    try:
+        _require(project).delete_from_icon_catalogue(entry_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Icon catalogue entry not found.")
 
 
 # ── health ─────────────────────────────────────────────────────────────────────

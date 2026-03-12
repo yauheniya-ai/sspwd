@@ -14,6 +14,7 @@ Usage:
     python examine_vault.py --project demo --decrypt
     python examine_vault.py --project demo --schema
     python examine_vault.py --project demo --companies
+    python examine_vault.py --project demo --icons
 
     # By explicit path
     python examine_vault.py --db /path/to/vault.db --decrypt
@@ -153,6 +154,11 @@ def show_metadata(conn: sqlite3.Connection, db_path: Path) -> None:
         print(f"  COMPANIES : {company_count}")
     except sqlite3.OperationalError:
         pass
+    try:
+        ic_count = conn.execute("SELECT COUNT(*) FROM icon_catalogue").fetchone()[0]
+        print(f"  ICONS     : {ic_count}")
+    except sqlite3.OperationalError:
+        pass
     print(_sep("═"))
 
 
@@ -283,6 +289,26 @@ def show_companies(conn: sqlite3.Connection) -> None:
     print(_sep())
 
 
+def show_icon_catalogue(conn: sqlite3.Connection) -> None:
+    cols = _columns(conn, "icon_catalogue")
+    if not cols:
+        print("\n  (no icon_catalogue table — vault predates icon library feature)\n")
+        return
+    rows = conn.execute("SELECT * FROM icon_catalogue ORDER BY created_at DESC").fetchall()
+    print(f"\n  ICON CATALOGUE — {len(rows)} total\n")
+    if not rows:
+        print("  (no icons catalogued yet)")
+        print()
+        return
+    print(f"  {'ID':>4}  {'TYPE':<8}  {'LABEL':<20}  VALUE")
+    print(f"  {'─'*4}  {'─'*8}  {'─'*20}  {'─'*46}")
+    for row in rows:
+        label = (row["label"] or "")[:20]
+        value = str(row["value"])[:60]
+        print(f"  {row['id']:>4}  {row['type']:<8}  {label:<20}  {value}")
+    print()
+
+
 def list_projects() -> None:
     root = Path.home() / ".sspwd"
     if not root.exists():
@@ -328,6 +354,8 @@ def main() -> None:
         help="Print the SQL schema and exit")
     parser.add_argument("--companies", action="store_true",
         help="Show the companies / owners table")
+    parser.add_argument("--icons", action="store_true",
+        help="Show the icon catalogue table")
     parser.add_argument("--list", action="store_true",
         help="List all projects in ~/.sspwd/ and exit")
     args = parser.parse_args()
@@ -369,6 +397,8 @@ def main() -> None:
         show_schema(conn)
     elif args.companies:
         show_companies(conn)
+    elif args.icons:
+        show_icon_catalogue(conn)
     elif args.decrypt:
         show_decrypted(conn, vault_dir)
     else:
