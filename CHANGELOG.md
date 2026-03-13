@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 0.2.8 (2026-03-13)
+Adds a "Social" category, shows category icons in the main panel, fixes the icon library dropdown, and pins the summary bar.
+
+- **"Social" category added** — `Social: "mdi:account-group"` added to `CATEGORY_ICONS`; the map and `categoryIcon()` helper are now exported from `mockData.ts` and shared between `Sidebar` and `MainContent`, eliminating the duplicate local definition in the sidebar
+- **Category icons in main content** — each category heading in the card grid now renders its `CATEGORY_ICONS` icon (same icon as the sidebar) to the left of the category name
+- **Icon library overlay** — the inline scrollable library panel inside the icon picker is replaced with a compact "Browse icon library (N)" button; clicking it opens a dedicated full-table overlay (`z-[60]`) with a search bar (auto-focused), "From entries" and "Bookmarked" sections, per-row type badges, inline label edit/delete on hover, a checkmark on the selected icon, and ✕ / backdrop-click to close; this fixes the bug where opening the old inline library made it impossible to close the tab dropdown
+- **Sticky summary bar** — the "N entries · N categories / Add entry" bar in `MainContent` is now pinned to the top of the panel with a subtle bottom border; only the category card grid below it scrolls
+
+
 ## Version 0.2.7 (2026-03-13)
 Adds an animated bi-color border to the "Add entry" button and makes sidebar filter badges context-aware and color-coded.
 
