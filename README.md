@@ -148,7 +148,7 @@ Projects can have different master passwords. Switching between them in the UI p
 | Detail | Value |
 |---|---|
 | Encryption | AES-256-GCM (authenticated — detects tampering via built-in auth tag) |
-| Key derivation | [Argon2id](https://github.com/hynek/argon2-cffi) — memory-hard, OWASP 2024 recommended |
+| Key derivation | [Argon2id](https://github.com/hynek/argon2-cffi) — memory-hard, OWASP 2025 recommended |
 | Argon2id parameters | `time=3`, `memory=64 MiB`, `parallelism=2` |
 | Key size | 256-bit |
 | Nonce | 12 bytes, random per encryption call, never reused |

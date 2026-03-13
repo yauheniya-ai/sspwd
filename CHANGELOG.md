@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.2.6 (2026-03-13)
+Redesigns the icon library tab so it searches existing entries by title rather than deduplicating by raw icon value.
+
+- **Library tab sources from entries** — the icon picker's library tab now iterates over all existing password entries that have an icon set, not just the flat `icon_catalogue` table; each entry appears as a searchable row showing its icon preview and title; entries sharing the same icon (e.g. seven Gmail accounts all using `logos:google-gmail`) are grouped into a single row and their titles listed together (e.g. `Gmail X, Gmail Y, Gmail Z`); clicking any row selects that icon for the current entry without re-uploading or retyping
+- **Search by entry title** — the library search box now filters by entry title so typing "gmail" surfaces all Gmail variants rather than the single deduplicated catalogue row; the icon type (`iconify` / `url` / `letter`) is shown as a small badge on each row
+- **"Bookmarked icons" section preserved** — manually managed catalogue entries (editable label, deletable) remain visible beneath a "Bookmarked icons" heading as a secondary section; inline label editing and delete still work as before
+- **`entries` prop added to `AddEditModal` and `IconPicker`** — `App.tsx` passes `entries={entries}` into the modal; `IconPicker` receives it as an optional prop (defaults to empty array) so no existing call sites break
+
 ## Version 0.2.5 (2026-03-12)
 Adds an icon catalogue shared across entries and owners, a full owners manager view, and miscellaneous UX fixes.
 
