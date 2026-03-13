@@ -1,6 +1,11 @@
 # Changelog
 
-## Version 0.2.6 (2026-03-13)
+## Version 0.2.7 (2026-03-13)
+Adds an animated bi-color border to the "Add entry" button and makes sidebar filter badges context-aware and color-coded.
+
+- **Animated "Add entry" button** — both "Add entry" buttons (summary bar and empty-state) now have a continuously animated bi-color running border: blue-700 on the left and top sides, red-700 on the right and bottom; the four border segments travel clockwise in a relay staggered by 375 ms each; hovering freezes the animation and snaps a full solid bi-color outline into place; the cursor changes to a pointer on hover
+- **Sidebar filters derived from current entries** — tags, categories, login methods, and HQ countries shown in the sidebar are now computed from the active `entries` array via `useMemo` instead of being imported as static arrays from `mockData.ts`; switching projects now immediately reflects only the values that exist in that vault
+- **Color-coded sidebar filter badges** — `TagBadge` gains a `color` prop (`"red" | "green" | "blue" | "purple"`); service-type badges use green for Free and blue for Paid (hover text turns the matching color); login-method badges use blue; HQ-country badges use purple; tag badges remain red (unchanged default)## Version 0.2.6 (2026-03-13)
 Redesigns the icon library tab so it searches existing entries by title rather than deduplicating by raw icon value.
 
 - **Library tab sources from entries** — the icon picker's library tab now iterates over all existing password entries that have an icon set, not just the flat `icon_catalogue` table; each entry appears as a searchable row showing its icon preview and title; entries sharing the same icon (e.g. seven Gmail accounts all using `logos:google-gmail`) are grouped into a single row and their titles listed together (e.g. `Gmail X, Gmail Y, Gmail Z`); clicking any row selects that icon for the current entry without re-uploading or retyping
