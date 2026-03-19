@@ -48,6 +48,13 @@ pip install sspwd
 
 > Requires Python ≥ 3.10.
 
+Alternatively, to install `sspwd` as a global CLI tool in an isolated environment, use pipx: 
+```bash
+brew install pipx && pipx ensurepath && pipx install sspwd
+```
+
+Restart your terminal or run `source ~/.zshrc`, then use `sspwd`.
+
 ## Quick start
 
 ### Web UI
