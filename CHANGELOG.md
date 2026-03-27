@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 0.2.10 (2026-03-27)
+Completes the offline SVG icon migration across all remaining components and overhauls `AddEditModal` field styling with color-coded themes and custom dropdowns.
+
+- **Full Iconify → inline SVG migration** — `MainContent`, `OwnersModal`, `PasswordCard`, `Sidebar`, and `TagBadge` no longer import `@iconify/react`; 7 new SVG components added to `constants/icons.tsx`: `IconPlus`, `IconUser`, `IconEmailOutline`, `IconSearch`, `IconCloseCircle`, `IconSortAsc`, `IconSortDesc`; only `EntryIcon` (runtime iconify-type entries) and `DetailPanel` (dynamic `circle-flags` country icons) retain the `@iconify/react` dependency
+- **Category field — custom dropdown** — the category `<input>`/`<datalist>` pair is replaced with a custom button-driven dropdown; options are sourced from `CATEGORY_META` (13 entries); each row renders the category's SVG icon alongside its label; selected/hovered rows use a red-500 highlight (`bg-red-700/20 text-red-400` / `hover:bg-red-700/10 hover:text-red-300`)
+- **Tags field — custom dropdown** — tag entry replaces the `<datalist>` suggestion list with an inline dropdown that filters `ALL_TAGS` as the user types; selecting a suggestion adds the tag immediately; red-500 hover highlight matches the category dropdown
+- **Company name — custom dropdown** — the company `<input>`/`<datalist>` is replaced with a filterable dropdown over the `companies` prop; selected/hovered rows use a purple highlight (`bg-purple-700/20 text-purple-400`)
+- **Login method chips — blue theme** — `TagBadge` toggles for `COMMON_LOGIN_METHODS` now pass `color="blue"` explicitly (previously defaulted to red)
+- **Service type chips — green / blue** — Free badge uses `color="green"`, Paid badge uses `color="blue"` (both previously defaulted to red)
+- **Icon picker tabs — white highlight** — active tab style changed from `border-blue-700 text-blue-400 bg-blue-700/10` to `border-white/40 text-white bg-white/10`; browse button and upload drop-zone hover border changed from `blue-700` to `white/50`; applies to both the entry icon picker and the owner icon picker (shared component)
+- **Owner fields — purple theme** — all owner address/revenue inputs use a new `inpPurple` style constant (`focus:border-purple-700` instead of blue); "All owners" link hover changed from `hover:text-blue-400` to `hover:text-purple-400`
+
 ## Version 0.2.9 (2026-03-27)
 Introduces a full category system with offline SVG icons and an ordered sidebar category list.
 
