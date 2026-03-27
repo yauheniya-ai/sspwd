@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.2.9 (2026-03-27)
+Introduces a full category system with offline SVG icons and an ordered sidebar category list.
+
+- **Category list in `constants/index.tsx`** — `CATEGORY_META` now defines all password-manager categories (`education`, `email`, `finance`, `gaming`, `shopping`, `social`, `software`, `technology`, `telecom`, `utilities`, `work`, `other`, `archive`) with a label and a React icon component reference; `utilities` and `archive` are new additions
+- **Offline SVG category icons** — 13 inline SVG components (`IconEducation`, `IconEmail`, `IconFinance`, `IconGaming`, `IconShopping`, `IconSocial`, `IconSoftware`, `IconTechnology`, `IconTelecom`, `IconUtilities`, `IconWork`, `IconOther`, `IconArchive`) added to `constants/icons.tsx`; `CATEGORY_META.icon` is now a typed React component (`CategoryIconComponent`) instead of an Iconify string, removing the runtime dependency on `@iconify/react` for category icons
+- **Sidebar ordered category list** — sidebar "List by category" section is now driven by `CATEGORY_META` instead of deriving categories from entries; categories are sorted alphabetically by label, with `other` second-to-last and `archive` always last; entry counts are normalised to lowercase so mock data (title-cased) matches correctly
+- **Case-insensitive category filter** — `MainContent` category filter now compares `e.category.toLowerCase()` against the selected key so mixed-case entry data filters correctly
+
 ## Version 0.2.8 (2026-03-13)
 Adds a "Social" category, shows category icons in the main panel, fixes the icon library dropdown, and pins the summary bar.
 
