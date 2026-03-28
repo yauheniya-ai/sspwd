@@ -13,19 +13,21 @@ from typing import Any, Optional
 @dataclass
 class IconCatalogueEntry:
     """One catalogued icon — unique by (type, value)."""
-    id:         Optional[int]
-    type:       str               # "letter" | "iconify" | "url"
-    value:      str
-    label:      Optional[str]     = None
-    created_at: Optional[datetime] = None
+    id:              Optional[int]
+    type:            str               # "letter" | "iconify" | "url"
+    value:           str
+    label:           Optional[str]     = None
+    created_at:      Optional[datetime] = None
+    cached_filename: Optional[str]     = None  # local file saved in icons_dir
 
     def to_dict(self) -> dict:
         return {
-            "id":         self.id,
-            "type":       self.type,
-            "value":      self.value,
-            "label":      self.label,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "id":              self.id,
+            "type":            self.type,
+            "value":           self.value,
+            "label":           self.label,
+            "created_at":      self.created_at.isoformat() if self.created_at else None,
+            "cached_filename": self.cached_filename,
         }
 
 

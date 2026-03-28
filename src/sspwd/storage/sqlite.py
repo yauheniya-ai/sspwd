@@ -14,11 +14,17 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from . import icon_cache as _ic
+
+log = logging.getLogger(__name__)
 
 from argon2.low_level import Type, hash_secret_raw
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -163,6 +169,11 @@ class SQLiteStorage(BaseStorage):
             if col not in company_existing:
                 conn.execute(f"ALTER TABLE companies ADD COLUMN {col} {defn}")
 
+        # icon_catalogue: add cached_filename if the table already existed
+        catalogue_existing = {row[1] for row in conn.execute("PRAGMA table_info(icon_catalogue)")}
+        if "cached_filename" not in catalogue_existing:
+            conn.execute("ALTER TABLE icon_catalogue ADD COLUMN cached_filename TEXT")
+
     # ── schema ────────────────────────────────────────────────────────────────
 
     def initialize(self) -> None:
@@ -198,11 +209,12 @@ class SQLiteStorage(BaseStorage):
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS icon_catalogue (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    type       TEXT    NOT NULL,   -- "letter" | "iconify" | "url"
-                    value      TEXT    NOT NULL,
-                    label      TEXT,
-                    created_at TEXT    NOT NULL,
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type            TEXT    NOT NULL,   -- "letter" | "iconify" | "url"
+                    value           TEXT    NOT NULL,
+                    label           TEXT,
+                    created_at      TEXT    NOT NULL,
+                    cached_filename TEXT,              -- local file in icons_dir, NULL = not yet cached
                     UNIQUE(type, value)
                 )
             """)
@@ -340,6 +352,7 @@ class SQLiteStorage(BaseStorage):
             entry.created_at = datetime.fromisoformat(now)
             entry.updated_at = entry.created_at
             self._maybe_catalogue_icon(conn, entry.icon)
+        self._start_caching_icon(entry.icon)
         return entry
 
     def get(self, entry_id: int) -> Optional[PasswordEntry]:
@@ -394,6 +407,7 @@ class SQLiteStorage(BaseStorage):
             if rc == 0:
                 raise KeyError(f"No entry with id={entry.id}")
             self._maybe_catalogue_icon(conn, entry.icon)
+        self._start_caching_icon(entry.icon)
         entry.updated_at = datetime.fromisoformat(now)
         return entry
 
@@ -429,6 +443,7 @@ class SQLiteStorage(BaseStorage):
             )
             company.id = cur.lastrowid
             self._maybe_catalogue_icon(conn, company.icon)
+        self._start_caching_icon(company.icon)
         return company
 
     def get_company(self, company_id: int) -> Optional[Company]:
@@ -458,6 +473,7 @@ class SQLiteStorage(BaseStorage):
             if rc == 0:
                 raise KeyError(f"No company with id={company.id}")
             self._maybe_catalogue_icon(conn, company.icon)
+        self._start_caching_icon(company.icon)
         return company
 
     def delete_company(self, company_id: int) -> None:
@@ -482,19 +498,53 @@ class SQLiteStorage(BaseStorage):
             (t, v, now),
         )
 
+    def _start_caching_icon(self, icon: Optional[dict]) -> None:
+        """Spawn a background download thread for an iconify/url icon if not yet cached.
+
+        Called immediately after any ``add`` / ``update`` that includes an icon
+        so the file lands in ``icons_dir`` without waiting for the next unlock.
+        """
+        if not icon:
+            return
+        t = icon.get("type")
+        v = icon.get("value")
+        if not t or not v or t not in ("iconify", "url"):
+            return
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, cached_filename FROM icon_catalogue WHERE type=? AND value=?",
+                (t, v),
+            ).fetchone()
+        if row is None:
+            # Not in catalogue yet — shouldn't normally happen, but handle gracefully
+            entry = self.add_to_icon_catalogue(t, v)  # this also spawns the thread
+            return
+        if row["cached_filename"] is None:
+            threading.Thread(
+                target=self._cache_and_store,
+                args=(row["id"], t, v),
+                daemon=True,
+            ).start()
+
     def _row_to_icon_catalogue(self, row: sqlite3.Row) -> IconCatalogueEntry:
+        cf  = row["cached_filename"] if "cached_filename" in row.keys() else None
         return IconCatalogueEntry(
-            id         = row["id"],
-            type       = row["type"],
-            value      = row["value"],
-            label      = row["label"],
-            created_at = datetime.fromisoformat(row["created_at"]),
+            id              = row["id"],
+            type            = row["type"],
+            value           = row["value"],
+            label           = row["label"],
+            created_at      = datetime.fromisoformat(row["created_at"]),
+            cached_filename = cf,
         )
 
     def add_to_icon_catalogue(
         self, type_: str, value: str, label: Optional[str] = None
     ) -> Optional[IconCatalogueEntry]:
-        """Explicitly add an icon to the catalogue. Returns the row (new or existing)."""
+        """Explicitly add an icon to the catalogue. Returns the row (new or existing).
+
+        Immediately attempts to cache the icon in a background thread so the
+        caller is never blocked by a network download.
+        """
         now = datetime.utcnow().isoformat()
         with self._connect() as conn:
             conn.execute(
@@ -504,7 +554,55 @@ class SQLiteStorage(BaseStorage):
             row = conn.execute(
                 "SELECT * FROM icon_catalogue WHERE type=? AND value=?", (type_, value)
             ).fetchone()
-        return self._row_to_icon_catalogue(row) if row else None
+        if row is None:
+            return None
+        entry = self._row_to_icon_catalogue(row)
+        # Kick off a background download if the icon is not yet cached
+        if entry.cached_filename is None and type_ in ("iconify", "url"):
+            threading.Thread(
+                target=self._cache_and_store,
+                args=(entry.id, type_, value),
+                daemon=True,
+            ).start()
+        return entry
+
+    def _cache_and_store(self, entry_id: int, type_: str, value: str) -> None:
+        """Download the icon (blocking) and persist the filename to the DB."""
+        filename = _ic.cache_icon(type_, value, self._icons_dir)
+        if filename:
+            self.set_icon_cached_filename(entry_id, filename)
+
+    def set_icon_cached_filename(self, entry_id: int, filename: str) -> None:
+        """Store the cached filename for a catalogue entry."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE icon_catalogue SET cached_filename=? WHERE id=?",
+                (filename, entry_id),
+            )
+
+    def sync_icon_cache(self) -> int:
+        """Download and cache all icons in the catalogue that are not yet cached.
+
+        Runs synchronously — call from a background thread so the API is not
+        blocked.  Returns the number of icons newly cached.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM icon_catalogue"
+                " WHERE cached_filename IS NULL AND type IN ('iconify', 'url')"
+            ).fetchall()
+
+        entries = [self._row_to_icon_catalogue(r) for r in rows]
+        count   = 0
+        for entry in entries:
+            filename = _ic.cache_icon(entry.type, entry.value, self._icons_dir)
+            if filename:
+                self.set_icon_cached_filename(entry.id, filename)  # type: ignore[arg-type]
+                count += 1
+                log.debug("sync_icon_cache: cached entry id=%s → %s", entry.id, filename)
+            else:
+                log.debug("sync_icon_cache: could not cache entry id=%s (%s %r)", entry.id, entry.type, entry.value)
+        return count
 
     def list_icon_catalogue(self) -> list[IconCatalogueEntry]:
         with self._connect() as conn:

@@ -6,12 +6,13 @@ All field names use camelCase in JSON to match the TypeScript frontend.
 from __future__ import annotations
 
 import mimetypes
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -112,6 +113,7 @@ class IconCatalogueOut(BaseModel):
     value:      str
     label:      Optional[str] = None
     created_at: Optional[str] = None
+    cached_url: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -124,6 +126,14 @@ def _parse_dt(s: Optional[str]) -> Optional[datetime]:
         return datetime.fromisoformat(s)
     except ValueError:
         return None
+
+
+def _catalogue_entry_dict(entry: Any, project: str) -> dict:
+    """Serialise an IconCatalogueEntry to dict and attach a cachedUrl."""
+    d = entry.to_dict()
+    cf = d.get("cached_filename")
+    d["cached_url"] = f"/api/v1/icons/{cf}?project={project}" if cf else None
+    return d
 
 
 def _entry_in_to_obj(body: EntryIn) -> PasswordEntry:
@@ -193,6 +203,8 @@ def unlock_project(name: str, body: UnlockIn):
         _sessions[name] = storage
     except Exception:
         raise HTTPException(status_code=401, detail="Wrong master password.")
+    # Kick off a background icon-cache sync so offline use works immediately
+    threading.Thread(target=storage.sync_icon_cache, daemon=True).start()
     return {"project": name, "status": "unlocked"}
 
 
@@ -339,7 +351,7 @@ def list_icons(project: str = Query(...)):
 
 @router.get("/icon-catalogue", response_model=list[IconCatalogueOut])
 def list_icon_catalogue(project: str = Query(...)):
-    return [e.to_dict() for e in _require(project).list_icon_catalogue()]
+    return [_catalogue_entry_dict(e, project) for e in _require(project).list_icon_catalogue()]
 
 
 @router.post("/icon-catalogue", response_model=IconCatalogueOut, status_code=201)
@@ -347,7 +359,7 @@ def add_to_icon_catalogue(body: IconCatalogueIn, project: str = Query(...)):
     entry = _require(project).add_to_icon_catalogue(body.type, body.value, body.label)
     if entry is None:
         raise HTTPException(status_code=500, detail="Failed to add icon to catalogue.")
-    return entry.to_dict()
+    return _catalogue_entry_dict(entry, project)
 
 
 @router.patch("/icon-catalogue/{entry_id}", response_model=IconCatalogueOut)
@@ -358,7 +370,8 @@ def update_icon_catalogue_label(
 ):
     label = body.get("label", "")
     try:
-        return _require(project).update_icon_catalogue_label(entry_id, label).to_dict()
+        entry = _require(project).update_icon_catalogue_label(entry_id, label)
+        return _catalogue_entry_dict(entry, project)
     except KeyError:
         raise HTTPException(status_code=404, detail="Icon catalogue entry not found.")
 
@@ -369,6 +382,14 @@ def delete_from_icon_catalogue(entry_id: int, project: str = Query(...)):
         _require(project).delete_from_icon_catalogue(entry_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Icon catalogue entry not found.")
+
+
+@router.post("/icons/sync", status_code=202)
+def sync_icons(project: str = Query(...)):
+    """Trigger a background download of all un-cached iconify/url icons."""
+    storage = _require(project)
+    threading.Thread(target=storage.sync_icon_cache, daemon=True).start()
+    return {"status": "sync started"}
 
 
 # ── health ─────────────────────────────────────────────────────────────────────

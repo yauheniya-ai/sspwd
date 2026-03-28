@@ -1,5 +1,7 @@
 # Changelog
 
+## Version 0.3.0 (2026-03-28)
+
 ## Version 0.2.10 (2026-03-27)
 Completes the offline SVG icon migration across all remaining components and overhauls `AddEditModal` field styling with color-coded themes and custom dropdowns.
 
