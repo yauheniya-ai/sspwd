@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.4.0 (2026-04-11)
+Adds an optional light background mode for entry and owner icons, controllable per-icon via a pill toggle in the icon picker.
+
+- **`lightBg` flag on `IconSource`** — `types/index.ts` adds an optional `lightBg?: boolean` field to all three `IconSource` variants (`iconify`, `url`, `letter`); the flag is persisted as part of the icon JSON in the vault
+- **`EntryIcon` light-background rendering** — when `lightBg` is set the icon wrapper switches from `bg-white/5 border-white/10` (dark) to `bg-white/90 border-black/10` (light); letter fallback text color changes from `text-white/60` to `text-black/60` so it remains legible on the bright background
+- **Light/dark toggle in `IconPicker`** — a pill-shaped toggle appears to the right of the tab row; the track itself shows the actual dark (`bg-white/10`) or light (`bg-white/90`) background color as a live preview; the thumb is white on dark and black on light; labeled "background"; default is dark; toggling re-emits the current icon value with the updated flag; library picks (from entries or bookmarks) also inherit the current toggle state
+
+
 ## Version 0.3.0 (2026-03-28)
 Adds a full offline icon cache system that automatically downloads and stores Iconify SVGs and URL-based icons locally, so the password manager works seamlessly without an internet connection. Fixes two runtime bugs: duplicate category labels in the UI and icons not appearing until the next vault unlock.
 
