@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 0.4.1 (2026-04-11)
+
+UI improvements
+- **Auto-hide revealed password** — password in `PasswordCard` now automatically re-masks itself after 5 seconds of being revealed; the timer resets if the eye icon is clicked again before it expires
+- **Copy button in AddEdit modal** — a copy icon is now shown inline inside the password input field (to the left of the eye toggle); clicking it copies the current password value to the clipboard and briefly shows a green checkmark; the button is disabled when the field is empty
+- **Email autocomplete dropdown** — the email field in the Add/Edit modal now shows a filterable dropdown of all previously used email addresses across existing entries; the list narrows as the user types and selecting an option fills the field instantly, eliminating the need to retype recurring addresses
+
 ## Version 0.4.0 (2026-04-11)
 Adds an optional light background mode for entry and owner icons, controllable per-icon via a pill toggle in the icon picker.
 
