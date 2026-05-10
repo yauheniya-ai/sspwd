@@ -21,24 +21,24 @@ derived from your master password. Nothing leaves your machine.
 ## Tech Stack
 
 **Backend**
-- <img src="https://api.iconify.design/devicon:python.svg" width="16" height="16"> Python — package language
-- <img src="https://api.iconify.design/devicon:fastapi.svg" width="16" height="16"> FastAPI — REST API for the web UI
-- <img src="https://api.iconify.design/devicon:sqlite.svg" width="16" height="16"> SQLite — local encrypted vault database
-- <img src="https://api.iconify.design/streamline-plump-color:device-database-encryption-1-flat.svg" width="16" height="16"> Argon2id + AES-256-GCM — key derivation and authenticated encryption
-- <img src="https://api.iconify.design/devicon:pytest.svg" width="16" height="16"> pytest — test suite with coverage reporting
+- ![Python](https://api.iconify.design/devicon:python.svg?height=16) Python — package language
+- ![FastAPI](https://api.iconify.design/devicon:fastapi.svg?height=16) FastAPI — REST API for the web UI
+- ![SQLite](https://api.iconify.design/devicon:sqlite.svg?height=16) SQLite — local encrypted vault database
+- ![Encryption](https://api.iconify.design/streamline-plump-color:device-database-encryption-1-flat.svg?height=16) Argon2id + AES-256-GCM — key derivation and authenticated encryption
+- ![pytest](https://api.iconify.design/devicon:pytest.svg?height=16) pytest — test suite with coverage reporting
 
 **Frontend**
-- <img src="https://api.iconify.design/devicon:react.svg" width="16" height="16"> React — interactive UI
-- <img src="https://api.iconify.design/devicon:vitejs.svg" width="16" height="16"> Vite — frontend build tool and dev server
-- <img src="https://api.iconify.design/devicon:typescript.svg" width="16" height="16"> TypeScript — type-safe components
-- <img src="https://api.iconify.design/devicon:tailwindcss.svg" width="16" height="16"> Tailwind CSS — utility-first styling
-- <img src="https://avatars.githubusercontent.com/u/50354982?v=4" width="16" height="16"> Iconify — service and brand icons
+- ![React](https://api.iconify.design/devicon:react.svg?height=16) React — interactive UI
+- ![Vite](https://api.iconify.design/devicon:vitejs.svg?height=16) Vite — frontend build tool and dev server
+- ![TypeScript](https://api.iconify.design/devicon:typescript.svg?height=16) TypeScript — type-safe components
+- ![Tailwind CSS](https://api.iconify.design/devicon:tailwindcss.svg?height=16) Tailwind CSS — utility-first styling
+- ![Iconify](https://avatars.githubusercontent.com/u/50354982?v=4&height=16) Iconify — service and brand icons
 
 **CLI**
-- <img src="https://api.iconify.design/devicon:clickhouse.svg" width="16" height="16"> Click — CLI commands (`serve`, `add`, `list`, `get`, `delete`, `projects`)
+- ![Click](https://api.iconify.design/devicon:clickhouse.svg?height=16) Click — CLI commands (`serve`, `add`, `list`, `get`, `delete`, `projects`)
 
 **Packaging**
-- <img src="https://api.iconify.design/devicon:pypi.svg" width="16" height="16"> PyPI — distributed as an installable Python package
+- ![PyPI](https://api.iconify.design/devicon:pypi.svg?height=16) PyPI — distributed as an installable Python package
 
 ## Installation
 
