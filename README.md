@@ -32,7 +32,7 @@ derived from your master password. Nothing leaves your machine.
 - ![Vite](https://api.iconify.design/devicon:vitejs.svg?height=16) Vite — frontend build tool and dev server
 - ![TypeScript](https://api.iconify.design/devicon:typescript.svg?height=16) TypeScript — type-safe components
 - ![Tailwind CSS](https://api.iconify.design/devicon:tailwindcss.svg?height=16) Tailwind CSS — utility-first styling
-- ![Iconify](https://avatars.githubusercontent.com/u/50354982?v=4&height=16) Iconify — service and brand icons
+- ![Iconify](https://api.iconify.design/simple-icons:iconify.svg?height=16) Iconify — service and brand icons
 
 **CLI**
 - ![Click](https://api.iconify.design/devicon:clickhouse.svg?height=16) Click — CLI commands (`serve`, `add`, `list`, `get`, `delete`, `projects`)
