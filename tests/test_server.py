@@ -43,6 +43,7 @@ class TestBuildApp:
 
     def test_app_exposed_via_property(self) -> None:
         from fastapi import FastAPI
+
         server = UIServer(open_browser=False)
         assert isinstance(server.app, FastAPI)
 
@@ -103,7 +104,9 @@ class TestStart:
         elapsed = time.time() - t0
         assert elapsed < 3.0, f"start(block=False) took {elapsed:.1f}s"
 
-    def test_open_browser_false_does_not_call_webbrowser(self, make_server, monkeypatch) -> None:
+    def test_open_browser_false_does_not_call_webbrowser(
+        self, make_server, monkeypatch
+    ) -> None:
         port = 17525
         called = []
         monkeypatch.setattr("webbrowser.open", lambda url: called.append(url))

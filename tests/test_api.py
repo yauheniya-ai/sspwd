@@ -5,7 +5,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from sspwd.storage.sqlite import SQLiteStorage
-from sspwd.storage.base import Company, CompanyAddress
 import sspwd.ui.api as api_module
 from sspwd.ui.server import UIServer
 
@@ -31,8 +30,12 @@ def client(tmp_path: Path) -> TestClient:
 @pytest.fixture
 def client_with_entry(client: TestClient) -> tuple[TestClient, dict]:
     """Client that already has one entry created."""
-    payload = {"title": "GitHub", "username": "alice", "password": "s3cr3t",
-               "url": "https://github.com"}
+    payload = {
+        "title": "GitHub",
+        "username": "alice",
+        "password": "s3cr3t",
+        "url": "https://github.com",
+    }
     entry = client.post(f"/api/v1/entries?project={PROJECT}", json=payload).json()
     return client, entry
 
@@ -44,9 +47,12 @@ def client_with_company(client: TestClient) -> tuple[TestClient, dict]:
         "name": "Acme Corp",
         "icon": {"type": "letter", "value": "A"},
         "address": {
-            "street": "1 Main St", "city": "Springfield",
-            "state": "IL", "postcode": "62701",
-            "country": "United States", "countryCode": "us",
+            "street": "1 Main St",
+            "city": "Springfield",
+            "state": "IL",
+            "postcode": "62701",
+            "country": "United States",
+            "countryCode": "us",
         },
         "revenue": 1_000_000.0,
     }
@@ -90,34 +96,44 @@ def test_list_empty(client: TestClient) -> None:
 
 def test_list_returns_all(client: TestClient) -> None:
     for title in ("Alpha", "Beta", "Gamma"):
-        client.post(f"/api/v1/entries?project={PROJECT}",
-                    json={"title": title, "username": "u", "password": "p"})
+        client.post(
+            f"/api/v1/entries?project={PROJECT}",
+            json={"title": title, "username": "u", "password": "p"},
+        )
     r = client.get(f"/api/v1/entries?project={PROJECT}")
     assert len(r.json()) == 3
 
 
 def test_list_search_by_title(client: TestClient) -> None:
     for title in ("GitHub", "GitLab", "AWS"):
-        client.post(f"/api/v1/entries?project={PROJECT}",
-                    json={"title": title, "username": "u", "password": "p"})
+        client.post(
+            f"/api/v1/entries?project={PROJECT}",
+            json={"title": title, "username": "u", "password": "p"},
+        )
     r = client.get(f"/api/v1/entries?project={PROJECT}&search=Git")
     assert r.status_code == 200
     assert len(r.json()) == 2
 
 
 def test_list_search_by_username(client: TestClient) -> None:
-    client.post(f"/api/v1/entries?project={PROJECT}",
-                json={"title": "A", "username": "alice@example.com", "password": "p"})
-    client.post(f"/api/v1/entries?project={PROJECT}",
-                json={"title": "B", "username": "bob@example.com", "password": "p"})
+    client.post(
+        f"/api/v1/entries?project={PROJECT}",
+        json={"title": "A", "username": "alice@example.com", "password": "p"},
+    )
+    client.post(
+        f"/api/v1/entries?project={PROJECT}",
+        json={"title": "B", "username": "bob@example.com", "password": "p"},
+    )
     r = client.get(f"/api/v1/entries?project={PROJECT}&search=alice")
     assert len(r.json()) == 1
     assert r.json()[0]["username"] == "alice@example.com"
 
 
 def test_list_search_no_results(client: TestClient) -> None:
-    client.post(f"/api/v1/entries?project={PROJECT}",
-                json={"title": "GitHub", "username": "u", "password": "p"})
+    client.post(
+        f"/api/v1/entries?project={PROJECT}",
+        json={"title": "GitHub", "username": "u", "password": "p"},
+    )
     r = client.get(f"/api/v1/entries?project={PROJECT}&search=zzznomatch")
     assert r.json() == []
 
@@ -145,9 +161,13 @@ def test_create_missing_title_returns_422(client: TestClient) -> None:
 
 def test_create_full(client: TestClient) -> None:
     payload = {
-        "title": "AWS", "username": "admin", "email": "admin@example.com",
-        "password": "hunter2", "url": "https://aws.amazon.com",
-        "notes": "root account", "category": "Cloud",
+        "title": "AWS",
+        "username": "admin",
+        "email": "admin@example.com",
+        "password": "hunter2",
+        "url": "https://aws.amazon.com",
+        "notes": "root account",
+        "category": "Cloud",
         "tags": ["work", "critical"],
         "login_methods": ["Email / Password"],
         "user_created_at": "2020-01-01T00:00:00",
@@ -164,8 +184,10 @@ def test_create_full(client: TestClient) -> None:
 
 
 def test_create_timestamps_present(client: TestClient) -> None:
-    r = client.post(f"/api/v1/entries?project={PROJECT}",
-                    json={"title": "T", "username": "u", "password": "p"})
+    r = client.post(
+        f"/api/v1/entries?project={PROJECT}",
+        json={"title": "T", "username": "u", "password": "p"},
+    )
     data = r.json()
     assert "created_at" in data
     assert "updated_at" in data
@@ -173,8 +195,10 @@ def test_create_timestamps_present(client: TestClient) -> None:
 
 def test_create_with_invalid_user_created_at(client: TestClient) -> None:
     """Malformed user_created_at is silently ignored (parsed as None)."""
-    r = client.post(f"/api/v1/entries?project={PROJECT}",
-                    json={"title": "T", "user_created_at": "not-a-date"})
+    r = client.post(
+        f"/api/v1/entries?project={PROJECT}",
+        json={"title": "T", "user_created_at": "not-a-date"},
+    )
     assert r.status_code == 201
     assert r.json()["user_created_at"] is None
 
@@ -204,8 +228,10 @@ def test_get_entry_not_found(client: TestClient) -> None:
 
 def test_update_entry(client_with_entry) -> None:
     client, entry = client_with_entry
-    r = client.put(f"/api/v1/entries/{entry['id']}?project={PROJECT}",
-                   json={"title": "GitHub Pro", "username": "alice2", "password": "newpass"})
+    r = client.put(
+        f"/api/v1/entries/{entry['id']}?project={PROJECT}",
+        json={"title": "GitHub Pro", "username": "alice2", "password": "newpass"},
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["title"] == "GitHub Pro"
@@ -213,16 +239,20 @@ def test_update_entry(client_with_entry) -> None:
 
 
 def test_update_entry_not_found(client: TestClient) -> None:
-    r = client.put(f"/api/v1/entries/99999?project={PROJECT}",
-                   json={"title": "X", "username": "x", "password": "x"})
+    r = client.put(
+        f"/api/v1/entries/99999?project={PROJECT}",
+        json={"title": "X", "username": "x", "password": "x"},
+    )
     assert r.status_code == 404
     assert "not found" in r.json()["detail"].lower()
 
 
 def test_update_persists(client_with_entry) -> None:
     client, entry = client_with_entry
-    client.put(f"/api/v1/entries/{entry['id']}?project={PROJECT}",
-               json={"title": "Updated", "username": "u", "password": "p"})
+    client.put(
+        f"/api/v1/entries/{entry['id']}?project={PROJECT}",
+        json={"title": "Updated", "username": "u", "password": "p"},
+    )
     fetched = client.get(f"/api/v1/entries/{entry['id']}?project={PROJECT}").json()
     assert fetched["title"] == "Updated"
 
@@ -248,8 +278,10 @@ def test_delete_entry_not_found(client: TestClient) -> None:
 
 def test_delete_reduces_list(client: TestClient) -> None:
     ids = [
-        client.post(f"/api/v1/entries?project={PROJECT}",
-                    json={"title": f"E{i}", "username": "u", "password": "p"}).json()["id"]
+        client.post(
+            f"/api/v1/entries?project={PROJECT}",
+            json={"title": f"E{i}", "username": "u", "password": "p"},
+        ).json()["id"]
         for i in range(3)
     ]
     client.delete(f"/api/v1/entries/{ids[0]}?project={PROJECT}")
@@ -268,8 +300,7 @@ def test_list_companies_empty(client: TestClient) -> None:
 
 
 def test_create_company_minimal(client: TestClient) -> None:
-    r = client.post(f"/api/v1/companies?project={PROJECT}",
-                    json={"name": "Bare Corp"})
+    r = client.post(f"/api/v1/companies?project={PROJECT}", json={"name": "Bare Corp"})
     assert r.status_code == 201
     data = r.json()
     assert data["name"] == "Bare Corp"
@@ -298,15 +329,16 @@ def test_get_company_not_found(client: TestClient) -> None:
 
 def test_update_company(client_with_company) -> None:
     client, company = client_with_company
-    r = client.put(f"/api/v1/companies/{company['id']}?project={PROJECT}",
-                   json={"name": "Acme Global", "revenue": 5_000_000.0})
+    r = client.put(
+        f"/api/v1/companies/{company['id']}?project={PROJECT}",
+        json={"name": "Acme Global", "revenue": 5_000_000.0},
+    )
     assert r.status_code == 200
     assert r.json()["name"] == "Acme Global"
 
 
 def test_update_company_not_found(client: TestClient) -> None:
-    r = client.put(f"/api/v1/companies/99999?project={PROJECT}",
-                   json={"name": "Ghost"})
+    r = client.put(f"/api/v1/companies/99999?project={PROJECT}", json={"name": "Ghost"})
     assert r.status_code == 404
 
 
@@ -314,7 +346,10 @@ def test_delete_company(client_with_company) -> None:
     client, company = client_with_company
     r = client.delete(f"/api/v1/companies/{company['id']}?project={PROJECT}")
     assert r.status_code == 204
-    assert client.get(f"/api/v1/companies/{company['id']}?project={PROJECT}").status_code == 404
+    assert (
+        client.get(f"/api/v1/companies/{company['id']}?project={PROJECT}").status_code
+        == 404
+    )
 
 
 def test_delete_company_not_found(client: TestClient) -> None:
@@ -324,8 +359,10 @@ def test_delete_company_not_found(client: TestClient) -> None:
 
 def test_create_company_no_address_country(client: TestClient) -> None:
     """address dict without country → address stored as None (covers _company_in_to_obj branch)."""
-    r = client.post(f"/api/v1/companies?project={PROJECT}",
-                    json={"name": "NoCountry", "address": {"street": "123 Main"}})
+    r = client.post(
+        f"/api/v1/companies?project={PROJECT}",
+        json={"name": "NoCountry", "address": {"street": "123 Main"}},
+    )
     assert r.status_code == 201
     assert r.json()["address"] is None
 
@@ -337,6 +374,7 @@ def test_create_company_no_address_country(client: TestClient) -> None:
 
 def test_require_raises_when_project_locked() -> None:
     from fastapi import HTTPException
+
     with pytest.raises(HTTPException) as exc_info:
         api_module._require("__nonexistent_project__")
     assert exc_info.value.status_code == 401
@@ -348,10 +386,14 @@ def test_unlock_wrong_password(tmp_path: Path) -> None:
     server = UIServer(open_browser=False)
     client = TestClient(server.app)
     from unittest.mock import patch
-    with patch("sspwd.ui.api.project_dir", return_value=vault_path), \
-         patch("sspwd.storage.sqlite.project_dir", return_value=vault_path):
-        r = client.post("/api/v1/projects/myproject/unlock",
-                        json={"password": "wrongpassword"})
+
+    with (
+        patch("sspwd.ui.api.project_dir", return_value=vault_path),
+        patch("sspwd.storage.sqlite.project_dir", return_value=vault_path),
+    ):
+        r = client.post(
+            "/api/v1/projects/myproject/unlock", json={"password": "wrongpassword"}
+        )
     assert r.status_code == 401
 
 
@@ -366,9 +408,12 @@ def test_create_project_and_list(tmp_path: Path) -> None:
     server = UIServer(open_browser=False)
     client = TestClient(server.app)
     from unittest.mock import patch
+
     fake_dir = tmp_path / "newproj"
-    with patch("sspwd.ui.api.project_dir", return_value=fake_dir), \
-         patch("sspwd.ui.api.SQLiteStorage") as MockStorage:
+    with (
+        patch("sspwd.ui.api.project_dir", return_value=fake_dir),
+        patch("sspwd.ui.api.SQLiteStorage") as MockStorage,
+    ):
         instance = MockStorage.return_value
         instance.list.return_value = []
         r = client.post("/api/v1/projects", json={"name": "newproj", "password": "pw"})
@@ -389,6 +434,7 @@ def test_create_project_already_exists(tmp_path: Path) -> None:
     server = UIServer(open_browser=False)
     client = TestClient(server.app)
     from unittest.mock import patch
+
     with patch("sspwd.ui.api.project_dir", return_value=vault_path):
         r = client.post("/api/v1/projects", json={"name": "exists", "password": "pw"})
     assert r.status_code == 409
@@ -413,10 +459,14 @@ def test_unlock_success(tmp_path: Path) -> None:
     server = UIServer(open_browser=False)
     client = TestClient(server.app)
     from unittest.mock import patch
-    with patch("sspwd.ui.api.project_dir", return_value=vault_path), \
-         patch("sspwd.storage.sqlite.project_dir", return_value=vault_path):
-        r = client.post("/api/v1/projects/goodproject/unlock",
-                        json={"password": "correct"})
+
+    with (
+        patch("sspwd.ui.api.project_dir", return_value=vault_path),
+        patch("sspwd.storage.sqlite.project_dir", return_value=vault_path),
+    ):
+        r = client.post(
+            "/api/v1/projects/goodproject/unlock", json={"password": "correct"}
+        )
     assert r.status_code == 200
     assert r.json()["status"] == "unlocked"
     api_module._sessions.pop("goodproject", None)
@@ -424,6 +474,7 @@ def test_unlock_success(tmp_path: Path) -> None:
 
 def test_list_projects_no_sspwd_dir(tmp_path: Path, monkeypatch) -> None:
     import pathlib
+
     empty_home = tmp_path / "empty_home"
     empty_home.mkdir()
     monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: empty_home))
@@ -500,7 +551,8 @@ def test_icon_list(client: TestClient) -> None:
 def test_icon_list_after_upload(client: TestClient) -> None:
     """GET /icons returns the uploaded file after a successful upload."""
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
-    client.post(f"/api/v1/icons?project={PROJECT}",
-                files={"file": ("x.png", png, "image/png")})
+    client.post(
+        f"/api/v1/icons?project={PROJECT}", files={"file": ("x.png", png, "image/png")}
+    )
     r = client.get(f"/api/v1/icons?project={PROJECT}")
     assert len(r.json()) >= 1

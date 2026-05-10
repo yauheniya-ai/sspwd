@@ -3,6 +3,7 @@ REST API — mounted under /api/v1 by server.py.
 
 All field names use camelCase in JSON to match the TypeScript frontend.
 """
+
 from __future__ import annotations
 
 import mimetypes
@@ -12,11 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
-from ..storage.base import Company, CompanyAddress, IconCatalogueEntry, PasswordEntry
+from ..storage.base import Company, CompanyAddress, PasswordEntry
 from ..storage.sqlite import SQLiteStorage, project_dir
 
 router = APIRouter(prefix="/api/v1")
@@ -43,18 +44,19 @@ def _require(project: str) -> SQLiteStorage:
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
+
 class AddressSchema(BaseModel):
-    street:      Optional[str] = None
-    city:        Optional[str] = None
-    state:       Optional[str] = None
-    postcode:    Optional[str] = None
-    country:     str           = ""
-    countryCode: str           = ""
+    street: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postcode: Optional[str] = None
+    country: str = ""
+    countryCode: str = ""
 
 
 class CompanyIn(BaseModel):
-    name:    str
-    icon:    Optional[dict] = None          # {type, value}
+    name: str
+    icon: Optional[dict] = None  # {type, value}
     address: Optional[AddressSchema] = None
     revenue: Optional[float] = None
 
@@ -65,23 +67,23 @@ class CompanyOut(CompanyIn):
 
 
 class EntryIn(BaseModel):
-    title:          str
-    username:       Optional[str]       = None
-    email:          Optional[str]       = None
-    password:       Optional[str]       = None
-    url:            Optional[str]       = None
-    notes:          Optional[str]       = None
-    icon:           Optional[dict]      = None          # {type, value}
-    category:       str                 = "Other"
-    service_type:   str                 = "free"        # "free" | "paid"
-    tags:           list[str]           = []
-    login_methods:  list[str]           = []
-    company_id:     Optional[int]       = None
-    user_created_at: Optional[str]      = None   # ISO string
+    title: str
+    username: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    url: Optional[str] = None
+    notes: Optional[str] = None
+    icon: Optional[dict] = None  # {type, value}
+    category: str = "Other"
+    service_type: str = "free"  # "free" | "paid"
+    tags: list[str] = []
+    login_methods: list[str] = []
+    company_id: Optional[int] = None
+    user_created_at: Optional[str] = None  # ISO string
 
 
 class EntryOut(EntryIn):
-    id:         int
+    id: int
     created_at: str
     updated_at: str
     model_config = ConfigDict(from_attributes=True)
@@ -92,32 +94,33 @@ class UnlockIn(BaseModel):
 
 
 class ProjectIn(BaseModel):
-    name:     str
+    name: str
     password: str
 
 
 class IconOut(BaseModel):
     filename: str
-    url:      str
+    url: str
 
 
 class IconCatalogueIn(BaseModel):
-    type:  str
+    type: str
     value: str
     label: Optional[str] = None
 
 
 class IconCatalogueOut(BaseModel):
-    id:         int
-    type:       str
-    value:      str
-    label:      Optional[str] = None
+    id: int
+    type: str
+    value: str
+    label: Optional[str] = None
     created_at: Optional[str] = None
     cached_url: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _parse_dt(s: Optional[str]) -> Optional[datetime]:
     if not s:
@@ -138,20 +141,20 @@ def _catalogue_entry_dict(entry: Any, project: str) -> dict:
 
 def _entry_in_to_obj(body: EntryIn) -> PasswordEntry:
     return PasswordEntry(
-        id              = None,
-        title           = body.title,
-        username        = body.username,
-        email           = body.email,
-        password        = body.password,
-        url             = body.url,
-        notes           = body.notes,
-        icon            = body.icon,
-        category        = body.category or "Other",
-        service_type    = body.service_type or "free",
-        tags            = body.tags or [],
-        login_methods   = body.login_methods or [],
-        company_id      = body.company_id,
-        user_created_at = _parse_dt(body.user_created_at),
+        id=None,
+        title=body.title,
+        username=body.username,
+        email=body.email,
+        password=body.password,
+        url=body.url,
+        notes=body.notes,
+        icon=body.icon,
+        category=body.category or "Other",
+        service_type=body.service_type or "free",
+        tags=body.tags or [],
+        login_methods=body.login_methods or [],
+        company_id=body.company_id,
+        user_created_at=_parse_dt(body.user_created_at),
     )
 
 
@@ -159,23 +162,24 @@ def _company_in_to_obj(body: CompanyIn, company_id: Optional[int] = None) -> Com
     addr = None
     if body.address and body.address.country:
         addr = CompanyAddress(
-            country      = body.address.country,
-            country_code = body.address.countryCode,
-            street       = body.address.street,
-            city         = body.address.city,
-            state        = body.address.state,
-            postcode     = body.address.postcode,
+            country=body.address.country,
+            country_code=body.address.countryCode,
+            street=body.address.street,
+            city=body.address.city,
+            state=body.address.state,
+            postcode=body.address.postcode,
         )
     return Company(
-        id      = company_id,
-        name    = body.name,
-        icon    = body.icon,
-        address = addr,
-        revenue = body.revenue,
+        id=company_id,
+        name=body.name,
+        icon=body.icon,
+        address=addr,
+        revenue=body.revenue,
     )
 
 
 # ── projects ──────────────────────────────────────────────────────────────────
+
 
 @router.get("/projects", response_model=list[str])
 def list_projects():
@@ -183,8 +187,7 @@ def list_projects():
     if not root.exists():
         return []
     return sorted(
-        d.name for d in root.iterdir()
-        if d.is_dir() and (d / "vault.db").exists()
+        d.name for d in root.iterdir() if d.is_dir() and (d / "vault.db").exists()
     )
 
 
@@ -229,8 +232,11 @@ def lock_project(name: str):
 
 # ── entries ────────────────────────────────────────────────────────────────────
 
+
 @router.get("/entries", response_model=list[EntryOut])
-def list_entries(project: str = Query(...), search: Optional[str] = Query(default=None)):
+def list_entries(
+    project: str = Query(...), search: Optional[str] = Query(default=None)
+):
     return [e.to_dict() for e in _require(project).list(search=search)]
 
 
@@ -249,7 +255,7 @@ def get_entry(entry_id: int, project: str = Query(...)):
 
 @router.put("/entries/{entry_id}", response_model=EntryOut)
 def update_entry(entry_id: int, body: EntryIn, project: str = Query(...)):
-    obj    = _entry_in_to_obj(body)
+    obj = _entry_in_to_obj(body)
     obj.id = entry_id
     try:
         return _require(project).update(obj).to_dict()
@@ -266,6 +272,7 @@ def delete_entry(entry_id: int, project: str = Query(...)):
 
 
 # ── companies ──────────────────────────────────────────────────────────────────
+
 
 @router.get("/companies", response_model=list[CompanyOut])
 def list_companies(project: str = Query(...)):
@@ -288,9 +295,11 @@ def get_company(company_id: int, project: str = Query(...)):
 @router.put("/companies/{company_id}", response_model=CompanyOut)
 def update_company(company_id: int, body: CompanyIn, project: str = Query(...)):
     try:
-        return _require(project).update_company(
-            _company_in_to_obj(body, company_id)
-        ).to_dict()
+        return (
+            _require(project)
+            .update_company(_company_in_to_obj(body, company_id))
+            .to_dict()
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Company not found.")
 
@@ -304,6 +313,7 @@ def delete_company(company_id: int, project: str = Query(...)):
 
 
 # ── icons ──────────────────────────────────────────────────────────────────────
+
 
 @router.post("/icons", response_model=IconOut, status_code=201)
 async def upload_icon(file: UploadFile = File(...), project: str = Query(...)):
@@ -349,9 +359,13 @@ def list_icons(project: str = Query(...)):
 
 # ── icon catalogue ────────────────────────────────────────────────────────────
 
+
 @router.get("/icon-catalogue", response_model=list[IconCatalogueOut])
 def list_icon_catalogue(project: str = Query(...)):
-    return [_catalogue_entry_dict(e, project) for e in _require(project).list_icon_catalogue()]
+    return [
+        _catalogue_entry_dict(e, project)
+        for e in _require(project).list_icon_catalogue()
+    ]
 
 
 @router.post("/icon-catalogue", response_model=IconCatalogueOut, status_code=201)
@@ -393,6 +407,7 @@ def sync_icons(project: str = Query(...)):
 
 
 # ── health ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/health")
 def health():

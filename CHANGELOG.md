@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 0.5.1 (2026-05-10)
+
+### Dev tooling
+- **Replaced `black` + `flake8` with `ruff`** — `pyproject.toml` dev dependencies now use `ruff>=0.4` for both formatting (`ruff format`) and linting (`ruff check`), removing two separate tools in favour of one
+- **Fixed all ruff lint warnings** — removed unused imports (`sys`, `typing.Any`, `fastapi.BackgroundTasks`, `IconCatalogueEntry`, `Company`, `CompanyAddress`, `pytest`, `types.SimpleNamespace`) across `cli.py`, `storage/base.py`, `ui/api.py`, and test files; moved module-level imports in `storage/sqlite.py` above the `logging.getLogger` call to satisfy E402; removed unused `entry =` assignment (F841)
+
 ## Version 0.5.0 (2026-05-10)
 
 - **CLI migrated from Click to Typer + Rich** — all commands (`serve`, `add`, `list`, `get`, `delete`, `change-password`, `projects`, `version`) rewritten using `typer`; `rich` replaces plain `click.echo` output with coloured console messages and formatted `Table` views for `list`, `get`, and `projects`

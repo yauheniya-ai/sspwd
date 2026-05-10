@@ -10,6 +10,7 @@ entries table columns:
 companies table columns:
     id, name, icon (JSON), address (JSON), revenue (REAL)
 """
+
 from __future__ import annotations
 
 import base64
@@ -22,35 +23,41 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from . import icon_cache as _ic
-
-log = logging.getLogger(__name__)
-
 from argon2.low_level import Type, hash_secret_raw
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from .base import BaseStorage, Company, CompanyAddress, IconCatalogueEntry, PasswordEntry
+from . import icon_cache as _ic
+from .base import (
+    BaseStorage,
+    Company,
+    CompanyAddress,
+    IconCatalogueEntry,
+    PasswordEntry,
+)
+
+log = logging.getLogger(__name__)
 
 # ── constants ────────────────────────────────────────────────────────────────
 
-_DB_FILENAME        = "vault.db"
-_SALT_FILENAME      = "salt.bin"
-_SENTINEL_FILENAME  = "verify.bin"
+_DB_FILENAME = "vault.db"
+_SALT_FILENAME = "salt.bin"
+_SENTINEL_FILENAME = "verify.bin"
 _SENTINEL_PLAINTEXT = b"sspwd-ok"
-_ICONS_DIRNAME      = "icons"
-_DEFAULT_PROJECT    = "default"
-_NONCE_LEN          = 12
+_ICONS_DIRNAME = "icons"
+_DEFAULT_PROJECT = "default"
+_NONCE_LEN = 12
 
-_ARGON2_TIME_COST   = 3
+_ARGON2_TIME_COST = 3
 _ARGON2_MEMORY_COST = 65536
 _ARGON2_PARALLELISM = 2
-_ARGON2_HASH_LEN    = 32
+_ARGON2_HASH_LEN = 32
 
 # Columns that are AES-encrypted in the entries table
 _ENCRYPTED_ENTRY_COLS = {"password", "email", "notes"}
 
 
 # ── module helpers ────────────────────────────────────────────────────────────
+
 
 def _derive_key(master_password: str, salt: bytes) -> bytes:
     return hash_secret_raw(
@@ -71,8 +78,8 @@ def project_dir(project: str = _DEFAULT_PROJECT, base: Optional[Path] = None) ->
 
 # ── storage class ─────────────────────────────────────────────────────────────
 
-class SQLiteStorage(BaseStorage):
 
+class SQLiteStorage(BaseStorage):
     def __init__(
         self,
         master_password: str,
@@ -82,14 +89,14 @@ class SQLiteStorage(BaseStorage):
         self._vault_dir = Path(vault_dir) if vault_dir else project_dir(project)
         self._vault_dir.mkdir(parents=True, exist_ok=True)
 
-        self._icons_dir     = self._vault_dir / _ICONS_DIRNAME
+        self._icons_dir = self._vault_dir / _ICONS_DIRNAME
         self._icons_dir.mkdir(exist_ok=True)
-        self._db_path       = self._vault_dir / _DB_FILENAME
-        self._salt_path     = self._vault_dir / _SALT_FILENAME
+        self._db_path = self._vault_dir / _DB_FILENAME
+        self._salt_path = self._vault_dir / _SALT_FILENAME
         self._sentinel_path = self._vault_dir / _SENTINEL_FILENAME
 
-        salt         = self._load_or_create_salt()
-        key          = _derive_key(master_password, salt)
+        salt = self._load_or_create_salt()
+        key = _derive_key(master_password, salt)
         self._aesgcm = AESGCM(key)
 
         self._write_or_verify_sentinel()
@@ -126,7 +133,7 @@ class SQLiteStorage(BaseStorage):
 
     def _encrypt(self, plaintext: str) -> str:
         nonce = os.urandom(_NONCE_LEN)
-        ct    = self._aesgcm.encrypt(nonce, plaintext.encode(), None)
+        ct = self._aesgcm.encrypt(nonce, plaintext.encode(), None)
         return base64.urlsafe_b64encode(nonce + ct).decode()
 
     def _decrypt(self, token: str) -> str:
@@ -143,25 +150,27 @@ class SQLiteStorage(BaseStorage):
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
         """Add any columns that did not exist in older vault versions."""
-        entry_existing  = {row[1] for row in conn.execute("PRAGMA table_info(entries)")}
-        company_existing = {row[1] for row in conn.execute("PRAGMA table_info(companies)")}
+        entry_existing = {row[1] for row in conn.execute("PRAGMA table_info(entries)")}
+        company_existing = {
+            row[1] for row in conn.execute("PRAGMA table_info(companies)")
+        }
 
         entry_new_cols = [
-            ("email",           "TEXT"),
-            ("category",        "TEXT DEFAULT 'Other'"),
-            ("tags",            "TEXT DEFAULT '[]'"),
-            ("login_methods",   "TEXT DEFAULT '[]'"),
-            ("company_id",      "INTEGER"),
+            ("email", "TEXT"),
+            ("category", "TEXT DEFAULT 'Other'"),
+            ("tags", "TEXT DEFAULT '[]'"),
+            ("login_methods", "TEXT DEFAULT '[]'"),
+            ("company_id", "INTEGER"),
             ("user_created_at", "TEXT"),
-            ("icon",            "TEXT"),
-            ("service_type",    "TEXT DEFAULT 'free'"),
+            ("icon", "TEXT"),
+            ("service_type", "TEXT DEFAULT 'free'"),
         ]
         for col, defn in entry_new_cols:
             if col not in entry_existing:
                 conn.execute(f"ALTER TABLE entries ADD COLUMN {col} {defn}")
 
         company_new_cols = [
-            ("icon",    "TEXT"),
+            ("icon", "TEXT"),
             ("address", "TEXT"),
             ("revenue", "REAL"),
         ]
@@ -170,7 +179,9 @@ class SQLiteStorage(BaseStorage):
                 conn.execute(f"ALTER TABLE companies ADD COLUMN {col} {defn}")
 
         # icon_catalogue: add cached_filename if the table already existed
-        catalogue_existing = {row[1] for row in conn.execute("PRAGMA table_info(icon_catalogue)")}
+        catalogue_existing = {
+            row[1] for row in conn.execute("PRAGMA table_info(icon_catalogue)")
+        }
         if "cached_filename" not in catalogue_existing:
             conn.execute("ALTER TABLE icon_catalogue ADD COLUMN cached_filename TEXT")
 
@@ -247,33 +258,33 @@ class SQLiteStorage(BaseStorage):
            ``salt.bin.tmp`` is present on disk.  The next successful call to
            ``reencrypt`` (or a manual rename) restores the vault.
         """
-        cols = sorted(_ENCRYPTED_ENTRY_COLS)   # deterministic column order
+        cols = sorted(_ENCRYPTED_ENTRY_COLS)  # deterministic column order
 
         # ── 1. Read + decrypt every encrypted column with the current key ──
         with self._connect() as conn:
-            rows = conn.execute(
-                f"SELECT id, {', '.join(cols)} FROM entries"
-            ).fetchall()
+            rows = conn.execute(f"SELECT id, {', '.join(cols)} FROM entries").fetchall()
 
         plaintext_rows: list[tuple[int, dict[str, Optional[str]]]] = [
             (
                 row["id"],
-                {col: (self._decrypt(row[col]) if row[col] is not None else None)
-                 for col in cols},
+                {
+                    col: (self._decrypt(row[col]) if row[col] is not None else None)
+                    for col in cols
+                },
             )
             for row in rows
         ]
 
         # ── 2. Derive a new key from a fresh random salt ──────────────────
         new_salt = os.urandom(32)
-        new_key  = _derive_key(new_master_password, new_salt)
-        new_gcm  = AESGCM(new_key)
+        new_key = _derive_key(new_master_password, new_salt)
+        new_gcm = AESGCM(new_key)
 
         def _enc_new(v: Optional[str]) -> Optional[str]:
             if v is None:
                 return None
             nonce = os.urandom(_NONCE_LEN)
-            ct    = new_gcm.encrypt(nonce, v.encode(), None)
+            ct = new_gcm.encrypt(nonce, v.encode(), None)
             return base64.urlsafe_b64encode(nonce + ct).decode()
 
         # ── 3. Stage the new salt (written before the DB changes commit) ──
@@ -285,9 +296,7 @@ class SQLiteStorage(BaseStorage):
         with self._connect() as conn:
             for entry_id, values in plaintext_rows:
                 params = [_enc_new(values[col]) for col in cols] + [entry_id]
-                conn.execute(
-                    f"UPDATE entries SET {set_clause} WHERE id = ?", params
-                )
+                conn.execute(f"UPDATE entries SET {set_clause} WHERE id = ?", params)
             conn.commit()
 
         # ── 5. Atomically promote the new salt (POSIX rename is atomic) ───
@@ -304,22 +313,26 @@ class SQLiteStorage(BaseStorage):
 
     def _row_to_entry(self, row: sqlite3.Row) -> PasswordEntry:
         return PasswordEntry(
-            id              = row["id"],
-            title           = row["title"],
-            username        = row["username"] if row["username"] else None,
-            email           = self._dec_opt(row["email"]),
-            password        = self._dec_opt(row["password"]),
-            url             = row["url"],
-            notes           = self._dec_opt(row["notes"]),
-            icon            = json.loads(row["icon"]) if row["icon"] else None,
-            category        = row["category"] or "Other",
-            service_type    = row["service_type"] or "free",
-            tags            = json.loads(row["tags"]) if row["tags"] else [],
-            login_methods   = json.loads(row["login_methods"]) if row["login_methods"] else [],
-            company_id      = row["company_id"],
-            user_created_at = datetime.fromisoformat(row["user_created_at"]) if row["user_created_at"] else None,
-            created_at      = datetime.fromisoformat(row["created_at"]),
-            updated_at      = datetime.fromisoformat(row["updated_at"]),
+            id=row["id"],
+            title=row["title"],
+            username=row["username"] if row["username"] else None,
+            email=self._dec_opt(row["email"]),
+            password=self._dec_opt(row["password"]),
+            url=row["url"],
+            notes=self._dec_opt(row["notes"]),
+            icon=json.loads(row["icon"]) if row["icon"] else None,
+            category=row["category"] or "Other",
+            service_type=row["service_type"] or "free",
+            tags=json.loads(row["tags"]) if row["tags"] else [],
+            login_methods=json.loads(row["login_methods"])
+            if row["login_methods"]
+            else [],
+            company_id=row["company_id"],
+            user_created_at=datetime.fromisoformat(row["user_created_at"])
+            if row["user_created_at"]
+            else None,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
     def add(self, entry: PasswordEntry) -> PasswordEntry:
@@ -344,11 +357,14 @@ class SQLiteStorage(BaseStorage):
                     json.dumps(entry.tags),
                     json.dumps(entry.login_methods),
                     entry.company_id,
-                    entry.user_created_at.isoformat() if entry.user_created_at else None,
-                    now, now,
+                    entry.user_created_at.isoformat()
+                    if entry.user_created_at
+                    else None,
+                    now,
+                    now,
                 ),
             )
-            entry.id         = cur.lastrowid
+            entry.id = cur.lastrowid
             entry.created_at = datetime.fromisoformat(now)
             entry.updated_at = entry.created_at
             self._maybe_catalogue_icon(conn, entry.icon)
@@ -357,7 +373,9 @@ class SQLiteStorage(BaseStorage):
 
     def get(self, entry_id: int) -> Optional[PasswordEntry]:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM entries WHERE id=?", (entry_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM entries WHERE id=?", (entry_id,)
+            ).fetchone()
         return self._row_to_entry(row) if row else None
 
     def list(self, search: Optional[str] = None) -> list[PasswordEntry]:
@@ -400,8 +418,11 @@ class SQLiteStorage(BaseStorage):
                     json.dumps(entry.tags),
                     json.dumps(entry.login_methods),
                     entry.company_id,
-                    entry.user_created_at.isoformat() if entry.user_created_at else None,
-                    now, entry.id,
+                    entry.user_created_at.isoformat()
+                    if entry.user_created_at
+                    else None,
+                    now,
+                    entry.id,
                 ),
             ).rowcount
             if rc == 0:
@@ -420,14 +441,16 @@ class SQLiteStorage(BaseStorage):
     # ── companies CRUD ────────────────────────────────────────────────────────
 
     def _row_to_company(self, row: sqlite3.Row) -> Company:
-        icon_raw    = row["icon"]
+        icon_raw = row["icon"]
         address_raw = row["address"]
         return Company(
-            id      = row["id"],
-            name    = row["name"],
-            icon    = json.loads(icon_raw)    if icon_raw    else None,
-            address = CompanyAddress.from_dict(json.loads(address_raw)) if address_raw else None,
-            revenue = row["revenue"],
+            id=row["id"],
+            name=row["name"],
+            icon=json.loads(icon_raw) if icon_raw else None,
+            address=CompanyAddress.from_dict(json.loads(address_raw))
+            if address_raw
+            else None,
+            revenue=row["revenue"],
         )
 
     def add_company(self, company: Company) -> Company:
@@ -436,7 +459,7 @@ class SQLiteStorage(BaseStorage):
                 "INSERT INTO companies (name, icon, address, revenue) VALUES (?,?,?,?)",
                 (
                     company.name,
-                    json.dumps(company.icon)             if company.icon    else None,
+                    json.dumps(company.icon) if company.icon else None,
                     json.dumps(company.address.to_dict()) if company.address else None,
                     company.revenue,
                 ),
@@ -448,7 +471,9 @@ class SQLiteStorage(BaseStorage):
 
     def get_company(self, company_id: int) -> Optional[Company]:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM companies WHERE id=?", (company_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM companies WHERE id=?", (company_id,)
+            ).fetchone()
         return self._row_to_company(row) if row else None
 
     def list_companies(self) -> list[Company]:
@@ -464,7 +489,7 @@ class SQLiteStorage(BaseStorage):
                 "UPDATE companies SET name=?, icon=?, address=?, revenue=? WHERE id=?",
                 (
                     company.name,
-                    json.dumps(company.icon)             if company.icon    else None,
+                    json.dumps(company.icon) if company.icon else None,
                     json.dumps(company.address.to_dict()) if company.address else None,
                     company.revenue,
                     company.id,
@@ -478,13 +503,17 @@ class SQLiteStorage(BaseStorage):
 
     def delete_company(self, company_id: int) -> None:
         with self._connect() as conn:
-            rc = conn.execute("DELETE FROM companies WHERE id=?", (company_id,)).rowcount
+            rc = conn.execute(
+                "DELETE FROM companies WHERE id=?", (company_id,)
+            ).rowcount
         if rc == 0:
             raise KeyError(f"No company with id={company_id}")
 
     # ── icon catalogue ────────────────────────────────────────────────────────
 
-    def _maybe_catalogue_icon(self, conn: sqlite3.Connection, icon: Optional[dict]) -> None:
+    def _maybe_catalogue_icon(
+        self, conn: sqlite3.Connection, icon: Optional[dict]
+    ) -> None:
         """Insert icon into icon_catalogue if not None; ignores duplicates."""
         if not icon:
             return
@@ -517,7 +546,7 @@ class SQLiteStorage(BaseStorage):
             ).fetchone()
         if row is None:
             # Not in catalogue yet — shouldn't normally happen, but handle gracefully
-            entry = self.add_to_icon_catalogue(t, v)  # this also spawns the thread
+            self.add_to_icon_catalogue(t, v)  # this also spawns the thread
             return
         if row["cached_filename"] is None:
             threading.Thread(
@@ -527,14 +556,14 @@ class SQLiteStorage(BaseStorage):
             ).start()
 
     def _row_to_icon_catalogue(self, row: sqlite3.Row) -> IconCatalogueEntry:
-        cf  = row["cached_filename"] if "cached_filename" in row.keys() else None
+        cf = row["cached_filename"] if "cached_filename" in row.keys() else None
         return IconCatalogueEntry(
-            id              = row["id"],
-            type            = row["type"],
-            value           = row["value"],
-            label           = row["label"],
-            created_at      = datetime.fromisoformat(row["created_at"]),
-            cached_filename = cf,
+            id=row["id"],
+            type=row["type"],
+            value=row["value"],
+            label=row["label"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            cached_filename=cf,
         )
 
     def add_to_icon_catalogue(
@@ -593,15 +622,22 @@ class SQLiteStorage(BaseStorage):
             ).fetchall()
 
         entries = [self._row_to_icon_catalogue(r) for r in rows]
-        count   = 0
+        count = 0
         for entry in entries:
             filename = _ic.cache_icon(entry.type, entry.value, self._icons_dir)
             if filename:
                 self.set_icon_cached_filename(entry.id, filename)  # type: ignore[arg-type]
                 count += 1
-                log.debug("sync_icon_cache: cached entry id=%s → %s", entry.id, filename)
+                log.debug(
+                    "sync_icon_cache: cached entry id=%s → %s", entry.id, filename
+                )
             else:
-                log.debug("sync_icon_cache: could not cache entry id=%s (%s %r)", entry.id, entry.type, entry.value)
+                log.debug(
+                    "sync_icon_cache: could not cache entry id=%s (%s %r)",
+                    entry.id,
+                    entry.type,
+                    entry.value,
+                )
         return count
 
     def list_icon_catalogue(self) -> list[IconCatalogueEntry]:
@@ -611,7 +647,9 @@ class SQLiteStorage(BaseStorage):
             ).fetchall()
         return [self._row_to_icon_catalogue(r) for r in rows]
 
-    def update_icon_catalogue_label(self, entry_id: int, label: str) -> IconCatalogueEntry:
+    def update_icon_catalogue_label(
+        self, entry_id: int, label: str
+    ) -> IconCatalogueEntry:
         with self._connect() as conn:
             rc = conn.execute(
                 "UPDATE icon_catalogue SET label=? WHERE id=?", (label, entry_id)

@@ -10,6 +10,7 @@ Supported icon types
 
 Letter icons need no caching — they are rendered from a single character.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -27,13 +28,14 @@ _ICONIFY_URL = "https://api.iconify.design/{collection}/{name}.svg"
 
 # Known raster / vector extensions
 _RASTER_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".bmp"}
-_SVG_EXTS    = {".svg"}
+_SVG_EXTS = {".svg"}
 
-_USER_AGENT  = "sspwd-icon-cache/1.0"
-_TIMEOUT     = 10   # seconds per HTTP request
+_USER_AGENT = "sspwd-icon-cache/1.0"
+_TIMEOUT = 10  # seconds per HTTP request
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _hash_key(type_: str, value: str) -> str:
     """Return a 20-char hex digest that uniquely identifies (type, value)."""
@@ -42,7 +44,7 @@ def _hash_key(type_: str, value: str) -> str:
 
 def _ext_from_url(url: str) -> str:
     """Best-guess file extension from the URL path (ignores query string)."""
-    path   = url.split("?")[0].rstrip("/")
+    path = url.split("?")[0].rstrip("/")
     suffix = Path(path).suffix.lower()
     if suffix in _RASTER_EXTS | _SVG_EXTS:
         return suffix
@@ -52,13 +54,13 @@ def _ext_from_url(url: str) -> str:
 def _ext_from_content_type(ct: str) -> str:
     ct = ct.lower().split(";")[0].strip()
     mapping = {
-        "image/svg+xml":              ".svg",
-        "image/png":                  ".png",
-        "image/jpeg":                 ".jpg",
-        "image/webp":                 ".webp",
-        "image/gif":                  ".gif",
-        "image/x-icon":               ".ico",
-        "image/vnd.microsoft.icon":   ".ico",
+        "image/svg+xml": ".svg",
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/x-icon": ".ico",
+        "image/vnd.microsoft.icon": ".ico",
     }
     return mapping.get(ct, "")
 
@@ -96,18 +98,21 @@ def _resize_raster(data: bytes, size: int = 64) -> Optional[bytes]:
 
 # ── public API ────────────────────────────────────────────────────────────────
 
+
 def cache_iconify(value: str, icons_dir: Path) -> Optional[str]:
     """
     Download an Iconify icon (e.g. ``"mdi:home"``) as an SVG file and save it
     to *icons_dir*.  Returns the saved filename on success, ``None`` on failure.
     """
     if ":" not in value:
-        log.debug("cache_iconify: malformed value %r (missing collection prefix)", value)
+        log.debug(
+            "cache_iconify: malformed value %r (missing collection prefix)", value
+        )
         return None
 
     collection, name = value.split(":", 1)
     filename = f"iconify_{_hash_key('iconify', value)}.svg"
-    dest     = icons_dir / filename
+    dest = icons_dir / filename
 
     if dest.exists():
         return filename  # already cached — skip download
@@ -162,7 +167,7 @@ def cache_url(value: str, icons_dir: Path) -> Optional[str]:
 
     # Determine true extension from content-type (more reliable than URL)
     ct_ext = _ext_from_content_type(content_type)
-    ext    = ct_ext or url_ext or ".png"
+    ext = ct_ext or url_ext or ".png"
 
     is_svg = (ext == ".svg") or ("svg" in content_type.lower())
 
@@ -192,4 +197,4 @@ def cache_icon(type_: str, value: str, icons_dir: Path) -> Optional[str]:
         return cache_iconify(value, icons_dir)
     if type_ == "url":
         return cache_url(value, icons_dir)
-    return None   # "letter" icons are rendered from text — no file needed
+    return None  # "letter" icons are rendered from text — no file needed

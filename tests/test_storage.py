@@ -38,8 +38,12 @@ def _company(**kwargs) -> Company:
 class TestCompanyAddress:
     def test_to_dict_full(self) -> None:
         a = CompanyAddress(
-            country="United States", country_code="us",
-            street="1 Main St", city="Springfield", state="IL", postcode="62701",
+            country="United States",
+            country_code="us",
+            street="1 Main St",
+            city="Springfield",
+            state="IL",
+            postcode="62701",
         )
         d = a.to_dict()
         assert d["country"] == "United States"
@@ -57,8 +61,11 @@ class TestCompanyAddress:
 
     def test_from_dict_round_trip(self) -> None:
         original = CompanyAddress(
-            country="France", country_code="fr",
-            street="1 Rue de Rivoli", city="Paris", postcode="75001",
+            country="France",
+            country_code="fr",
+            street="1 Rue de Rivoli",
+            city="Paris",
+            postcode="75001",
         )
         restored = CompanyAddress.from_dict(original.to_dict())
         assert restored.country == original.country
@@ -80,8 +87,13 @@ class TestCompanyAddress:
 class TestCompanyDataclass:
     def test_to_dict_with_address(self) -> None:
         addr = CompanyAddress(country="US", country_code="us", city="NYC")
-        c = Company(id=1, name="Acme", icon={"type": "letter", "value": "A"},
-                    address=addr, revenue=1_000_000.0)
+        c = Company(
+            id=1,
+            name="Acme",
+            icon={"type": "letter", "value": "A"},
+            address=addr,
+            revenue=1_000_000.0,
+        )
         d = c.to_dict()
         assert d["name"] == "Acme"
         assert d["address"]["city"] == "NYC"
@@ -96,8 +108,13 @@ class TestCompanyDataclass:
 
     def test_from_dict_round_trip(self) -> None:
         addr = CompanyAddress(country="Canada", country_code="ca", city="Toronto")
-        c = Company(id=5, name="CanadaCo", icon={"type": "url", "value": "https://x.com/logo.svg"},
-                    address=addr, revenue=5_000_000.0)
+        c = Company(
+            id=5,
+            name="CanadaCo",
+            icon={"type": "url", "value": "https://x.com/logo.svg"},
+            address=addr,
+            revenue=5_000_000.0,
+        )
         restored = Company.from_dict(c.to_dict())
         assert restored.name == "CanadaCo"
         assert restored.revenue == 5_000_000.0
@@ -182,6 +199,7 @@ class TestInit:
     def test_migration_adds_missing_entry_columns(self, tmp_path: Path) -> None:
         """Migration runs ALTER TABLE for any column absent in an older vault."""
         import sqlite3
+
         # Create a minimal old-style DB with only legacy columns
         db = tmp_path / "vault.db"
         conn = sqlite3.connect(db)
@@ -414,15 +432,23 @@ class TestCompanyCRUD:
         assert fetched.name == "OpenAI"
 
     def test_add_with_full_details(self, storage: SQLiteStorage) -> None:
-        addr = CompanyAddress(country="United States", country_code="us",
-                              street="1 Infinite Loop", city="Cupertino", state="CA",
-                              postcode="95014")
-        c = storage.add_company(Company(
-            id=None, name="Apple Inc.",
-            icon={"type": "iconify", "value": "logos:apple"},
-            address=addr,
-            revenue=383_000_000_000.0,
-        ))
+        addr = CompanyAddress(
+            country="United States",
+            country_code="us",
+            street="1 Infinite Loop",
+            city="Cupertino",
+            state="CA",
+            postcode="95014",
+        )
+        c = storage.add_company(
+            Company(
+                id=None,
+                name="Apple Inc.",
+                icon={"type": "iconify", "value": "logos:apple"},
+                address=addr,
+                revenue=383_000_000_000.0,
+            )
+        )
         fetched = storage.get_company(c.id)
         assert fetched.revenue == 383_000_000_000.0
         assert fetched.address.country == "United States"
@@ -525,13 +551,31 @@ class TestEncryption:
         assert s2.get(entry.id).password == "plaintext"
 
     def test_to_dict_contains_all_keys(self, storage: SQLiteStorage) -> None:
-        entry = storage.add(_entry(url="https://x.com", notes="n",
-                                   email="x@x.com", category="Tech",
-                                   tags=["a"], login_methods=["Google"]))
+        entry = storage.add(
+            _entry(
+                url="https://x.com",
+                notes="n",
+                email="x@x.com",
+                category="Tech",
+                tags=["a"],
+                login_methods=["Google"],
+            )
+        )
         d = entry.to_dict()
-        for key in ("id", "title", "username", "email", "password", "url",
-                    "notes", "category", "tags", "login_methods",
-                    "created_at", "updated_at"):
+        for key in (
+            "id",
+            "title",
+            "username",
+            "email",
+            "password",
+            "url",
+            "notes",
+            "category",
+            "tags",
+            "login_methods",
+            "created_at",
+            "updated_at",
+        ):
             assert key in d
 
 
@@ -545,8 +589,8 @@ class TestReencrypt:
         s.reencrypt("new-pass")
         fetched = s.get(e.id)
         assert fetched.password == "s3cr3t"
-        assert fetched.email    == "x@x.com"
-        assert fetched.notes    == "my note"
+        assert fetched.email == "x@x.com"
+        assert fetched.notes == "my note"
 
     def test_new_master_opens_vault(self, tmp_path: Path) -> None:
         """A fresh SQLiteStorage instance opened with the new password works."""
@@ -578,7 +622,7 @@ class TestReencrypt:
         for i, e in enumerate(entries):
             fetched = s2.get(e.id)
             assert fetched.password == f"pass{i}"
-            assert fetched.email    == f"u{i}@x.com"
+            assert fetched.email == f"u{i}@x.com"
 
     def test_reencrypt_handles_null_encrypted_fields(self, tmp_path: Path) -> None:
         """Entries with None email/notes/password are preserved as None."""
@@ -588,5 +632,5 @@ class TestReencrypt:
         s2 = SQLiteStorage(master_password="new-pwd", vault_dir=tmp_path)
         fetched = s2.get(e.id)
         assert fetched.password is None
-        assert fetched.email    is None
-        assert fetched.notes    is None
+        assert fetched.email is None
+        assert fetched.notes is None

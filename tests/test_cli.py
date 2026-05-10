@@ -4,7 +4,6 @@
 that path is covered indirectly by test_api.py via UIServer.
 """
 
-import pytest
 from pathlib import Path
 from click.testing import CliRunner
 
@@ -21,10 +20,16 @@ from sspwd.storage.base import PasswordEntry
 def _seed(vault_dir: Path, master: str = "pw") -> PasswordEntry:
     """Create a vault with a single entry and return it."""
     storage = SQLiteStorage(master_password=master, vault_dir=vault_dir)
-    return storage.add(PasswordEntry(
-        id=None, title="GitHub", username="alice", password="s3cr3t",
-        url="https://github.com", notes="work account",
-    ))
+    return storage.add(
+        PasswordEntry(
+            id=None,
+            title="GitHub",
+            username="alice",
+            password="s3cr3t",
+            url="https://github.com",
+            notes="work account",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +51,7 @@ def test_version_flag() -> None:
     assert result.exit_code == 0
     # just check it contains a semver-like pattern, not a hardcoded string
     import re
+
     assert re.search(r"\d+\.\d+\.\d+", result.output)
 
 
@@ -59,14 +65,18 @@ class TestListCommand:
         # initialise the vault so the salt exists, but add no entries
         SQLiteStorage(master_password="pw", vault_dir=tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["list", "--vault-dir", str(tmp_path)], input="pw\n")
+        result = runner.invoke(
+            cli, ["list", "--vault-dir", str(tmp_path)], input="pw\n"
+        )
         assert result.exit_code == 0
         assert "No entries found" in result.output
 
     def test_lists_entry(self, tmp_path: Path) -> None:
         _seed(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["list", "--vault-dir", str(tmp_path)], input="pw\n")
+        result = runner.invoke(
+            cli, ["list", "--vault-dir", str(tmp_path)], input="pw\n"
+        )
         assert result.exit_code == 0
         assert "GitHub" in result.output
         assert "alice" in result.output
@@ -75,7 +85,9 @@ class TestListCommand:
         _seed(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["list", "--vault-dir", str(tmp_path), "--search", "GitHub"], input="pw\n"
+            cli,
+            ["list", "--vault-dir", str(tmp_path), "--search", "GitHub"],
+            input="pw\n",
         )
         assert "GitHub" in result.output
 
@@ -83,7 +95,9 @@ class TestListCommand:
         _seed(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["list", "--vault-dir", str(tmp_path), "--search", "zzznomatch"], input="pw\n"
+            cli,
+            ["list", "--vault-dir", str(tmp_path), "--search", "zzznomatch"],
+            input="pw\n",
         )
         assert "No entries found" in result.output
 
@@ -124,7 +138,9 @@ class TestGetCommand:
     def test_get_existing_entry(self, tmp_path: Path) -> None:
         entry = _seed(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["get", str(entry.id), "--vault-dir", str(tmp_path)], input="pw\n")
+        result = runner.invoke(
+            cli, ["get", str(entry.id), "--vault-dir", str(tmp_path)], input="pw\n"
+        )
         assert result.exit_code == 0
         assert "GitHub" in result.output
         assert "alice" in result.output
@@ -135,7 +151,9 @@ class TestGetCommand:
     def test_get_not_found_exits_1(self, tmp_path: Path) -> None:
         SQLiteStorage(master_password="pw", vault_dir=tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["get", "99999", "--vault-dir", str(tmp_path)], input="pw\n")
+        result = runner.invoke(
+            cli, ["get", "99999", "--vault-dir", str(tmp_path)], input="pw\n"
+        )
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
@@ -150,7 +168,9 @@ class TestDeleteCommand:
         entry = _seed(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["delete", str(entry.id), "--yes", "--vault-dir", str(tmp_path)], input="pw\n"
+            cli,
+            ["delete", str(entry.id), "--yes", "--vault-dir", str(tmp_path)],
+            input="pw\n",
         )
         assert result.exit_code == 0
         assert "Deleted" in result.output
@@ -160,7 +180,9 @@ class TestDeleteCommand:
         runner = CliRunner()
         # inputs: master password, then "y" to confirm
         result = runner.invoke(
-            cli, ["delete", str(entry.id), "--vault-dir", str(tmp_path)], input="pw\ny\n"
+            cli,
+            ["delete", str(entry.id), "--vault-dir", str(tmp_path)],
+            input="pw\ny\n",
         )
         assert result.exit_code == 0
         assert "Deleted" in result.output
@@ -169,7 +191,9 @@ class TestDeleteCommand:
         entry = _seed(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["delete", str(entry.id), "--vault-dir", str(tmp_path)], input="pw\nn\n"
+            cli,
+            ["delete", str(entry.id), "--vault-dir", str(tmp_path)],
+            input="pw\nn\n",
         )
         # Click raises Abort on "n", which exits non-zero
         assert result.exit_code != 0
@@ -181,7 +205,9 @@ class TestDeleteCommand:
         SQLiteStorage(master_password="pw", vault_dir=tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["delete", "99999", "--yes", "--vault-dir", str(tmp_path)], input="pw\n"
+            cli,
+            ["delete", "99999", "--yes", "--vault-dir", str(tmp_path)],
+            input="pw\n",
         )
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
@@ -190,7 +216,9 @@ class TestDeleteCommand:
         entry = _seed(tmp_path)
         runner = CliRunner()
         runner.invoke(
-            cli, ["delete", str(entry.id), "--yes", "--vault-dir", str(tmp_path)], input="pw\n"
+            cli,
+            ["delete", str(entry.id), "--yes", "--vault-dir", str(tmp_path)],
+            input="pw\n",
         )
         storage = SQLiteStorage(master_password="pw", vault_dir=tmp_path)
         assert storage.get(entry.id) is None

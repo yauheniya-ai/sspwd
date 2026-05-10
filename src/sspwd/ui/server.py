@@ -46,7 +46,11 @@ class UIServer:
 
         if _STATIC_DIR.is_dir() and (_STATIC_DIR / "index.html").exists():
             if (_STATIC_DIR / "assets").is_dir():
-                app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")
+                app.mount(
+                    "/assets",
+                    StaticFiles(directory=_STATIC_DIR / "assets"),
+                    name="assets",
+                )
 
             @app.get("/{full_path:path}", include_in_schema=False)
             async def spa_fallback(full_path: str):
@@ -57,7 +61,9 @@ class UIServer:
     def start(self, block: bool = True) -> None:
         url = f"http://{self._host}:{self._port}"
 
-        config = uvicorn.Config(self._app, host=self._host, port=self._port, log_level="warning")
+        config = uvicorn.Config(
+            self._app, host=self._host, port=self._port, log_level="warning"
+        )
         self._server = uvicorn.Server(config)
 
         if self._open_browser:
@@ -65,7 +71,9 @@ class UIServer:
 
             async def _startup_and_open(sockets=None):
                 await original_startup(sockets=sockets)
-                threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+                threading.Thread(
+                    target=webbrowser.open, args=(url,), daemon=True
+                ).start()
 
             self._server.startup = _startup_and_open  # type: ignore[method-assign]
 

@@ -16,7 +16,6 @@ Projects are stored as separate vaults under ~/.sspwd/{project}/vault.db.
 The default project is named "default".
 """
 
-import sys
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -53,18 +52,25 @@ _ASCII = """
 @app.callback()
 def _main(
     ctx: typer.Context,
-    version: Annotated[bool, typer.Option("--version", "-v", help="Print version and exit.", is_eager=True)] = False,
+    version: Annotated[
+        bool,
+        typer.Option("--version", "-v", help="Print version and exit.", is_eager=True),
+    ] = False,
 ) -> None:
     if version:
         console.print(f"sspwd {__version__}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         console.print(_ASCII, style="bold purple")
-        console.print(f"  sspwd [bold]{__version__}[/bold] — a local, encrypted password manager.\n")
+        console.print(
+            f"  sspwd [bold]{__version__}[/bold] — a local, encrypted password manager.\n"
+        )
         console.print("  Run [bold]sspwd --help[/bold] to see available commands.")
 
 
-def _get_storage(master: str, project: str, vault_dir: Optional[Path] = None) -> SQLiteStorage:
+def _get_storage(
+    master: str, project: str, vault_dir: Optional[Path] = None
+) -> SQLiteStorage:
     return SQLiteStorage(master_password=master, project=project, vault_dir=vault_dir)
 
 
@@ -72,8 +78,15 @@ def _prompt_master() -> str:
     return typer.prompt("Master password", hide_input=True)
 
 
-_ProjectArg = Annotated[str, typer.Option("--project", "-p", help="Project / workspace name (subdirectory of ~/.sspwd/).")]
-_VaultDirArg = Annotated[Optional[Path], typer.Option("--vault-dir", help="Override vault directory.")]
+_ProjectArg = Annotated[
+    str,
+    typer.Option(
+        "--project", "-p", help="Project / workspace name (subdirectory of ~/.sspwd/)."
+    ),
+]
+_VaultDirArg = Annotated[
+    Optional[Path], typer.Option("--vault-dir", help="Override vault directory.")
+]
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +102,7 @@ def serve(
 ) -> None:
     """Start the web UI. Projects are unlocked on demand in the browser."""
     from .ui.server import UIServer
+
     server = UIServer(host=host, port=port, open_browser=not no_browser)
     server.start(block=True)
 
@@ -99,31 +113,40 @@ def add_entry(
     vault_dir: _VaultDirArg = None,
 ) -> None:
     """Add a new password entry interactively."""
-    master  = _prompt_master()
+    master = _prompt_master()
     storage = _get_storage(master, project, vault_dir)
 
-    title    = typer.prompt("Title")
+    title = typer.prompt("Title")
     username = typer.prompt("Username")
     password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
-    url      = typer.prompt("URL (optional)", default="")
-    notes    = typer.prompt("Notes (optional)", default="")
+    url = typer.prompt("URL (optional)", default="")
+    notes = typer.prompt("Notes (optional)", default="")
 
     entry = PasswordEntry(
-        id=None, title=title, username=username, password=password,
-        url=url or None, notes=notes or None,
+        id=None,
+        title=title,
+        username=username,
+        password=password,
+        url=url or None,
+        notes=notes or None,
     )
     created = storage.add(entry)
-    console.print(f"[green]✓ Saved '{title}' (id={created.id}) in project '{project}'[/green]")
+    console.print(
+        f"[green]✓ Saved '{title}' (id={created.id}) in project '{project}'[/green]"
+    )
 
 
 @app.command("list")
 def list_entries(
     project: _ProjectArg = _DEFAULT_PROJECT,
-    search: Annotated[Optional[str], typer.Option("--search", "-s", help="Filter by title / username / URL.")] = None,
+    search: Annotated[
+        Optional[str],
+        typer.Option("--search", "-s", help="Filter by title / username / URL."),
+    ] = None,
     vault_dir: _VaultDirArg = None,
 ) -> None:
     """List all stored entries for a project."""
-    master  = _prompt_master()
+    master = _prompt_master()
     storage = _get_storage(master, project, vault_dir)
 
     entries = storage.list(search=search)
@@ -148,9 +171,9 @@ def get_entry(
     vault_dir: _VaultDirArg = None,
 ) -> None:
     """Show a single entry (reveals password)."""
-    master  = _prompt_master()
+    master = _prompt_master()
     storage = _get_storage(master, project, vault_dir)
-    entry   = storage.get(entry_id)
+    entry = storage.get(entry_id)
 
     if entry is None:
         err_console.print(f"[red]Entry {entry_id} not found.[/red]")
@@ -159,12 +182,12 @@ def get_entry(
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Field", style="bold")
     table.add_column("Value")
-    table.add_row("Title",    entry.title)
+    table.add_row("Title", entry.title)
     table.add_row("Username", entry.username)
     table.add_row("Password", entry.password)
-    table.add_row("URL",      entry.url or "-")
-    table.add_row("Notes",    entry.notes or "-")
-    table.add_row("Updated",  str(entry.updated_at))
+    table.add_row("URL", entry.url or "-")
+    table.add_row("Notes", entry.notes or "-")
+    table.add_row("Updated", str(entry.updated_at))
     console.print(table)
 
 
@@ -172,11 +195,13 @@ def get_entry(
 def delete_entry(
     entry_id: Annotated[int, typer.Argument(help="Entry ID to delete.")],
     project: _ProjectArg = _DEFAULT_PROJECT,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt.")] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Skip confirmation prompt.")
+    ] = False,
     vault_dir: _VaultDirArg = None,
 ) -> None:
     """Delete an entry by ID."""
-    master  = _prompt_master()
+    master = _prompt_master()
     storage = _get_storage(master, project, vault_dir)
 
     if not yes:
@@ -214,11 +239,15 @@ def change_password(
         err_console.print("[red]✗ New password must not be empty.[/red]")
         raise typer.Exit(1)
     if new_pw == current:
-        console.print("[yellow]New password is identical to the current one. Nothing changed.[/yellow]")
+        console.print(
+            "[yellow]New password is identical to the current one. Nothing changed.[/yellow]"
+        )
         return
 
     entry_count = len(storage.list())
-    console.print(f"Re-encrypting {entry_count} {'entry' if entry_count == 1 else 'entries'}…")
+    console.print(
+        f"Re-encrypting {entry_count} {'entry' if entry_count == 1 else 'entries'}…"
+    )
 
     storage.reencrypt(new_pw)
     console.print(f"[green]✓ Master password changed for project '{project}'.[/green]")
@@ -232,7 +261,11 @@ def list_projects() -> None:
         console.print("No projects found (vault directory does not exist yet).")
         return
 
-    projects = [d.name for d in sorted(root.iterdir()) if d.is_dir() and (d / "vault.db").exists()]
+    projects = [
+        d.name
+        for d in sorted(root.iterdir())
+        if d.is_dir() and (d / "vault.db").exists()
+    ]
     if not projects:
         console.print("No projects found.")
         return
