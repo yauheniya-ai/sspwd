@@ -35,7 +35,7 @@ derived from your master password. Nothing leaves your machine.
 - ![Iconify](https://api.iconify.design/simple-icons:iconify.svg?height=16) Iconify — service and brand icons
 
 **CLI**
-- ![Click](https://api.iconify.design/devicon:clickhouse.svg?height=16) Click — CLI commands (`serve`, `add`, `list`, `get`, `delete`, `projects`)
+- ![Typer](https://api.iconify.design/devicon:typer.svg?height=16) [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) — CLI with coloured output
 
 **Packaging**
 - ![PyPI](https://api.iconify.design/devicon:pypi.svg?height=16) PyPI — distributed as an installable Python package
@@ -202,11 +202,14 @@ The master password is never stored anywhere. It is entered in the browser UI, u
 
 ## Contributing
 
+Contributions are welcome!
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-change`)
-3. Make your changes
-4. Run the test suite: `pytest --cov=src --cov-report=term-missing`
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/my-change`) and make your changes
+3. Run the test suite: `pytest --cov=src --cov-report=term-missing`
+4. Format and lint: `ruff format src/ tests/ && ruff check src/ tests/`
+5. Update the documentation
+6. Submit a pull request
 
 ## License
 

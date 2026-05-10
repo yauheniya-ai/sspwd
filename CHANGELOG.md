@@ -1,6 +1,13 @@
 # Changelog
 
-## Version 0.4.1 (2026-04-11)
+## Version 0.5.0 (2026-05-10)
+
+- **CLI migrated from Click to Typer + Rich** — all commands (`serve`, `add`, `list`, `get`, `delete`, `change-password`, `projects`, `version`) rewritten using `typer`; `rich` replaces plain `click.echo` output with coloured console messages and formatted `Table` views for `list`, `get`, and `projects`
+- **ASCII art banner** — running `sspwd` without a subcommand now displays a purple ASCII art logo alongside the version number and a hint to run `--help`
+- **`--version` / `-v` flag** — added as a root-level eager option; `sspwd --version` prints the version and exits cleanly (previously required `sspwd version` as a subcommand)
+- **Dependency change** — replaced `click>=8.1` with `typer>=0.12` + `rich>=13`
+
+## Version 0.4.1 (2026-05-03)
 
 UI improvements
 - **Auto-hide revealed password** — password in `PasswordCard` now automatically re-masks itself after 5 seconds of being revealed; the timer resets if the eye icon is clicked again before it expires
