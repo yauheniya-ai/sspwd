@@ -290,8 +290,3 @@ def version() -> None:
 
 def main() -> None:
     app()
-
-
-# Expose a Click-compatible command object for testing with Click's CliRunner.
-import typer.main as _typer_main  # noqa: E402
-cli = _typer_main.get_command(app)
