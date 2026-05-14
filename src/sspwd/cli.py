@@ -117,6 +117,7 @@ def add_entry(
     storage = _get_storage(master, project, vault_dir)
 
     title = typer.prompt("Title")
+    category = typer.prompt("Category (optional)", default="Other")
     username = typer.prompt("Username")
     password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
     url = typer.prompt("URL (optional)", default="")
@@ -125,6 +126,7 @@ def add_entry(
     entry = PasswordEntry(
         id=None,
         title=title,
+        category=category or "Other",
         username=username,
         password=password,
         url=url or None,
@@ -288,3 +290,8 @@ def version() -> None:
 
 def main() -> None:
     app()
+
+
+# Expose a Click-compatible command object for testing with Click's CliRunner.
+import typer.main as _typer_main  # noqa: E402
+cli = _typer_main.get_command(app)
